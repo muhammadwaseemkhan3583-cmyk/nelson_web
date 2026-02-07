@@ -48,7 +48,7 @@ export default function VoucherRecords() {
     });
   }, [searchTerm, timeframe, vouchers]);
 
-  const totalSum = filteredRecords.reduce((s, r) => s + r.totalAmount, 0);
+  const totalSum = filteredRecords.reduce((s: number, r: any) => s + r.totalAmount, 0);
 
   return (
     <div className="flex flex-col h-full animate-fadeIn w-[90vw] mx-auto overflow-hidden relative text-gray-900">

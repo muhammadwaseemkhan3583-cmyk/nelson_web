@@ -37,7 +37,7 @@ export async function GET(request: Request) {
     // Aggregation Logic
     let voucherItems = [];
     if (type === "Petty Cash") {
-        const aggregated = expenses.reduce((acc: any, curr) => {
+        const aggregated = expenses.reduce((acc: any, curr: any) => {
             // Normalize category: Trim and title case for consistent grouping
             const rawCat = (curr.category || "General").trim();
             const catKey = rawCat.toLowerCase();
@@ -73,7 +73,7 @@ export async function GET(request: Request) {
         }));
     }
 
-    const totalAmount = voucherItems.reduce((sum, item) => sum + item.amount, 0);
+    const totalAmount = voucherItems.reduce((sum: number, item: any) => sum + item.amount, 0);
     const count = await prisma.voucherRecord.count({ where: { date: { gte: startOfDay, lte: endOfDay } } });
     const serial = `VC-${dateStr.replace(/-/g, '')}-${(count + 1).toString().padStart(3, '0')}`;
 

@@ -124,16 +124,16 @@ export default function ExpenseReports() {
   }, [expenses, tableTimeframe, fromDate, toDate, tableType, tableDept, tableCat]);
 
   // Calculations
-  const totalMonthly = metricsData.reduce((sum, e) => sum + e.amount, 0);
+  const totalMonthly = metricsData.reduce((sum: number, e: any) => sum + e.amount, 0);
   
-  const deptBreakdown = metricsData.reduce((acc: any, e) => {
+  const deptBreakdown = metricsData.reduce((acc: any, e: any) => {
     const d = (e.department || "Other").trim();
     acc[d] = (acc[d] || 0) + e.amount;
     return acc;
   }, {});
   const sortedDepts = Object.entries(deptBreakdown).sort(([, a]: any, [, b]: any) => b - a);
 
-  const catBreakdown = metricsData.reduce((acc: any, e) => {
+  const catBreakdown = metricsData.reduce((acc: any, e: any) => {
     const rawCat = (e.category || "General").trim();
     const normalizedCat = rawCat.charAt(0).toUpperCase() + rawCat.slice(1).toLowerCase();
     acc[normalizedCat] = (acc[normalizedCat] || 0) + e.amount;
@@ -342,7 +342,7 @@ export default function ExpenseReports() {
                     <tfoot className="bg-gray-900 text-white font-black">
                         <tr>
                             <td colSpan={3} className="px-8 py-5 text-xs uppercase tracking-widest">Sheet Total (Filtered)</td>
-                            <td className="px-8 py-5 text-right font-mono text-orange-500">Rs. {filteredTableData.reduce((s,r) => s+r.amount, 0).toLocaleString()}</td>
+                            <td className="px-8 py-5 text-right font-mono text-orange-500">Rs. {filteredTableData.reduce((s: number, r: any) => s + r.amount, 0).toLocaleString()}</td>
                         </tr>
                     </tfoot>
                 </table>

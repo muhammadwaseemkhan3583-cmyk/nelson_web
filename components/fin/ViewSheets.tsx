@@ -85,7 +85,7 @@ export default function ViewSheets() {
     });
   }, [expenses, selectedYear, selectedTimeframe, fromMonth, toMonth, selectedType, selectedDept, selectedCat, searchName]);
 
-  const totalAmount = filteredData.reduce((s, r) => s + r.amount, 0);
+  const totalAmount = filteredData.reduce((s: number, r: any) => s + r.amount, 0);
 
   return (
     <div className="flex flex-col h-full animate-fadeIn w-[95vw] mx-auto overflow-hidden text-gray-900">
