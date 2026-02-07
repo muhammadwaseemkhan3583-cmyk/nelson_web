@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     }
 
     // 1. Transaction to ensure both record save and expense linking succeed
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Create the record
       const savedRecord = await tx.voucherRecord.create({
         data: {
