@@ -1,0 +1,50 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  uid       String   @unique
+  name      String
+  code      String   @unique
+  email     String   @unique
+  role      String
+  status    String   @default("Active")
+  createdAt DateTime @default(now())
+}
+
+model Expense {
+  id            String   @id @default(uuid())
+  type          String   @default("Petty Cash") // "Petty Cash" or "Cash Voucher"
+  date          DateTime
+  category      String?
+  department    String?
+  description   String?  // For Cash Voucher
+  vendorName    String?  // For Cash Voucher
+  concernPerson String?  // For Cash Voucher
+  billOfMonth   String?  // For Cash Voucher
+  empCode       String?
+  empName       String?
+  numPersons    Int?
+  numDays       Int?
+  amount        Float
+  remarks       String?
+  status        String   @default("Verified")
+  voucherId     String?
+  createdAt     DateTime @default(now())
+}
+
+model VoucherRecord {
+  id           String   @id @default(uuid())
+  serialNumber String   @unique
+  type         String   @default("Petty Cash")
+  date         DateTime
+  totalAmount  Float
+  items        Json     
+  preparedBy   String?
+  createdAt    DateTime @default(now())
+}
