@@ -29,7 +29,7 @@ export default function VoucherRecords() {
   }, []);
 
   const filteredRecords = useMemo(() => {
-    return vouchers.filter(rec => {
+    return vouchers.filter((rec: any) => {
       const matchSerial = rec.serialNumber.toLowerCase().includes(searchTerm.toLowerCase());
       
       // Timeframe Logic

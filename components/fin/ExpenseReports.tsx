@@ -39,12 +39,12 @@ export default function ExpenseReports() {
   }, []);
 
   // Filter options derived from data
-  const departments = ["All", ...Array.from(new Set(expenses.map(e => e.department).filter(Boolean)))].sort();
-  const categories = ["All", ...Array.from(new Set(expenses.map(e => e.category).filter(Boolean)))].sort();
+  const departments = ["All", ...Array.from(new Set(expenses.map((e: any) => e.department).filter(Boolean)))].sort();
+  const categories = ["All", ...Array.from(new Set(expenses.map((e: any) => e.category).filter(Boolean)))].sort();
 
   // Metrics Data (Filtered by Header Timeframe/Year)
   const metricsData = useMemo(() => {
-    return expenses.filter(e => {
+    return expenses.filter((e: any) => {
       const d = new Date(e.date);
       const now = new Date();
       
@@ -86,7 +86,7 @@ export default function ExpenseReports() {
 
   // Table Data (The "Sheet" - Filtered by specific table filters)
   const filteredTableData = useMemo(() => {
-    return expenses.filter(e => {
+    return expenses.filter((e: any) => {
       const matchType = tableType === "All" || e.type === tableType;
       const matchDept = tableDept === "All" || e.department === tableDept;
       const matchCat = tableCat === "All" || e.category === tableCat;

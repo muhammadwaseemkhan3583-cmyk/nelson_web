@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Invalid data." }, { status: 400 });
     }
 
-    const validExpenses = expenses.filter(exp => 
+    const validExpenses = expenses.filter((exp: any) => 
       (exp.type === "Petty Cash" ? exp.category : exp.description) && exp.amount
     );
     

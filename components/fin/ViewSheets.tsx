@@ -42,12 +42,12 @@ export default function ViewSheets() {
   }, []);
 
   // Filter options derived from database data
-  const departments = ["All", ...Array.from(new Set(expenses.map(e => e.department).filter(Boolean)))].sort();
-  const categories = ["All", ...Array.from(new Set(expenses.map(e => e.category).filter(Boolean)))].sort();
+  const departments = ["All", ...Array.from(new Set(expenses.map((e: any) => e.department).filter(Boolean)))].sort();
+  const categories = ["All", ...Array.from(new Set(expenses.map((e: any) => e.category).filter(Boolean)))].sort();
 
   // Core Filtering Logic
   const filteredData = useMemo(() => {
-    return expenses.filter(e => {
+    return expenses.filter((e: any) => {
       const eDate = new Date(e.date);
       const now = new Date();
       

@@ -27,7 +27,7 @@ export default function UserManagement() {
   useEffect(() => {
     const q = query(collection(db, "users"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      const userList = snapshot.docs.map(doc => ({
+      const userList = snapshot.docs.map((doc: any) => ({
         id: doc.id,
         ...doc.data()
       }));
@@ -36,7 +36,7 @@ export default function UserManagement() {
     return () => unsubscribe();
   }, []);
 
-  const filteredUsers = users.filter(u => 
+  const filteredUsers = users.filter((u: any) => 
     u.name?.toLowerCase().includes(appliedSearch.toLowerCase()) || 
     u.code?.toLowerCase().includes(appliedSearch.toLowerCase())
   );

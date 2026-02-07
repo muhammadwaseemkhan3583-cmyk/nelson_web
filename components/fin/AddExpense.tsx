@@ -29,7 +29,7 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
   }, [entryType]);
 
   const handleCellChange = (id: number, field: string, value: string) => {
-    setExpenseRows(expenseRows.map(row => row.id === id ? { ...row, [field]: value } : row));
+    setExpenseRows(expenseRows.map((row: any) => row.id === id ? { ...row, [field]: value } : row));
   };
 
   const addNewRow = () => {
@@ -38,12 +38,12 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
 
   const removeRow = (id: number) => {
     if (expenseRows.length > 1) {
-      setExpenseRows(expenseRows.filter(row => row.id !== id));
+      setExpenseRows(expenseRows.filter((row: any) => row.id !== id));
     }
   };
 
   const handleSaveToDatabase = async () => {
-    const hasData = expenseRows.some(r => (entryType === "Petty Cash" ? r.category : r.description) && r.amount);
+    const hasData = expenseRows.some((r: any) => (entryType === "Petty Cash" ? r.category : r.description) && r.amount);
     if (!hasData) {
         alert("Please enter data before saving.");
         return;
@@ -53,7 +53,7 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
     try {
       const response = await authenticatedFetch("/api/expenses/save", {
         method: "POST",
-        body: JSON.stringify({ expenses: expenseRows.map(r => ({ ...r, type: entryType })) }),
+        body: JSON.stringify({ expenses: expenseRows.map((r: any) => ({ ...r, type: entryType })) }),
       });
 
       const result = await response.json();

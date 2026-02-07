@@ -28,7 +28,7 @@ export async function GET(request: Request) {
     });
 
     // Format dates to YYYY-MM-DD
-    const dates = pendingExpenses.map(exp => exp.date.toISOString().split('T')[0]);
+    const dates = pendingExpenses.map((exp: any) => exp.date.toISOString().split('T')[0]);
 
     return NextResponse.json({ 
       success: true, 

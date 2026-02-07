@@ -66,7 +66,7 @@ export default function FinanceDashboardPage() {
             className="flex items-center gap-2 p-1 rounded-full hover:bg-white/5 transition-all outline-none"
           >
             <div className="w-9 h-9 bg-green-600 rounded-full border-2 border-green-500/30 flex items-center justify-center shadow-lg ring-2 ring-transparent hover:ring-green-500/20 transition-all">
-                <span className="text-xs font-black text-white">{userData?.name ? userData.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : "..."}</span>
+                <span className="text-xs font-black text-white">{userData?.name ? userData.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase() : "..."}</span>
             </div>
             <svg className={`w-4 h-4 text-gray-500 transition-transform duration-300 ${isProfileOpen ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M19 9l-7 7-7-7"></path></svg>
           </button>
