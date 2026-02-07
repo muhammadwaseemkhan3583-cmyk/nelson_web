@@ -146,7 +146,7 @@ export default function UserManagement() {
                 </thead>
                 <tbody className="bg-white">
                     {filteredUsers.length > 0 ? (
-                        filteredUsers.map((user, index) => (
+                        filteredUsers.map((user: any, index: number) => (
                             <tr key={user.id} className="hover:bg-blue-50 transition-colors group">
                                 <td className="border-r border-gray-200 text-center text-[10px] font-bold text-gray-400 bg-gray-50/50">{index + 1}</td>
                                 <td className="border-r border-gray-200 px-4 py-3 text-xs font-black text-gray-900 uppercase tracking-tight">{user.name}</td>

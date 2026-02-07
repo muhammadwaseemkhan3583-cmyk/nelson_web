@@ -65,7 +65,7 @@ export async function GET(request: Request) {
         }));
     } else {
         // Cash Voucher aggregation (One row per entry as usually requested for cash vouchers)
-        voucherItems = expenses.map((e, i) => ({
+        voucherItems = expenses.map((e: any, i: number) => ({
             srNo: i + 1,
             detail: `${e.description} (${e.vendorName})${e.department ? ` - ${e.department}` : ''}`,
             amount: e.amount,

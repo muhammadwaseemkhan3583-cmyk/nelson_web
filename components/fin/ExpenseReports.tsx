@@ -309,7 +309,7 @@ export default function ExpenseReports() {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 font-medium text-gray-700 uppercase">
-                        {filteredTableData.map((row, i) => (
+                        {filteredTableData.map((row: any, i: number) => (
                             <tr key={i} className="hover:bg-blue-50/30 transition-colors">
                                 <td className="px-8 py-4 font-black text-gray-900 whitespace-nowrap">
                                     <div className="flex flex-col">

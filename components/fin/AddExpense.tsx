@@ -131,7 +131,7 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
                 </tr>
               </thead>
               <tbody className="bg-white">
-                {expenseRows.map((row, index) => (
+                {expenseRows.map((row: any, index: number) => (
                   <tr key={row.id} className="hover:bg-blue-50 transition-colors group">
                     <td className="border border-gray-200 text-center text-[10px] font-bold text-gray-400 bg-gray-50">{index + 1}</td>
                     <td className="border border-gray-200">

@@ -201,7 +201,7 @@ export default function ViewSheets() {
                 {isLoading ? (
                     <tr><td colSpan={11} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Synchronizing Live Database...</td></tr>
                 ) : filteredData.length > 0 ? (
-                  filteredData.map((row, index) => (
+                  filteredData.map((row: any, index: number) => (
                     <tr key={row.id} className="hover:bg-blue-50 transition-colors group border-b border-gray-100 uppercase">
                       <td className="border-r border-gray-200 text-center text-[10px] font-bold text-gray-400 bg-gray-50/50">{index + 1}</td>
                       <td className="border-r border-gray-200 px-3 py-2 text-[10px]">

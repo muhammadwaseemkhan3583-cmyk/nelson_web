@@ -104,7 +104,7 @@ export default function VoucherRecords() {
                     {isLoading ? (
                         <tr><td colSpan={6} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Fetching records...</td></tr>
                     ) : filteredRecords.length > 0 ? (
-                        filteredRecords.map((rec, index) => (
+                        filteredRecords.map((rec: any, index: number) => (
                             <tr key={rec.id} className="hover:bg-blue-50 transition-colors group">
                                 <td className="border-r border-gray-200 text-center text-[10px] font-bold text-gray-400 bg-gray-50/50">{index + 1}</td>
                                 <td className="border-r border-gray-200 px-4 py-3 text-xs font-black text-gray-900 uppercase tracking-tight">{rec.serialNumber}</td>

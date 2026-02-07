@@ -83,7 +83,7 @@ export default function LoginPage() {
 
             {/* Feature Pills */}
             <div className="flex flex-wrap gap-3">
-                {["Secure Auth", "Real-time Auditing", "Financial Analytics", "Cloud Sync"].map((f) => (
+                {["Secure Auth", "Real-time Auditing", "Financial Analytics", "Cloud Sync"].map((f: string) => (
                     <span key={f} className="px-4 py-2 bg-white/5 border border-white/10 rounded-full text-[10px] font-black uppercase tracking-widest text-gray-300 backdrop-blur-sm">
                         {f}
                     </span>
