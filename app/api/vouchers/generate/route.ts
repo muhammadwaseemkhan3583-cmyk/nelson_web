@@ -77,7 +77,7 @@ export async function GET(request: Request) {
     const count = await prisma.voucherRecord.count({ where: { date: { gte: startOfDay, lte: endOfDay } } });
     const serial = `VC-${dateStr.replace(/-/g, '')}-${(count + 1).toString().padStart(3, '0')}`;
 
-    return NextResponse.json({ success: true, serial, items: voucherItems, total: totalAmount, expenseIds: expenses.map(e => e.id) }, { status: 200 });
+    return NextResponse.json({ success: true, serial, items: voucherItems, total: totalAmount, expenseIds: expenses.map((e: any) => e.id) }, { status: 200 });
 
   } catch (error: any) {
     return NextResponse.json({ success: false, message: error.message }, { status: 500 });
