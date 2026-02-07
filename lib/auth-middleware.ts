@@ -1,7 +1,14 @@
 import { adminAuth } from "@/lib/firebase-admin";
 import { NextResponse } from "next/server";
 
-export async function verifyAuth(request: Request) {
+export interface AuthStatus {
+  authenticated: boolean;
+  uid?: string;
+  role?: string;
+  error?: string;
+}
+
+export async function verifyAuth(request: Request): Promise<AuthStatus> {
   try {
     const authHeader = request.headers.get("Authorization");
     if (!authHeader || !authHeader.startsWith("Bearer ")) {
@@ -11,7 +18,11 @@ export async function verifyAuth(request: Request) {
     const token = authHeader.split("Bearer ")[1];
     const decodedToken = await adminAuth.verifyIdToken(token);
     
-    return { authenticated: true, uid: decodedToken.uid, role: decodedToken.role };
+    return { 
+      authenticated: true, 
+      uid: decodedToken.uid, 
+      role: decodedToken.role as string 
+    };
   } catch (error) {
     console.error("Auth Verification Error:", error);
     return { authenticated: false, error: "Invalid or expired token." };
