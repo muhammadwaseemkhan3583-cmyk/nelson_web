@@ -9,10 +9,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: auth.error }, { status: 401 });
     }
 
-    const { serial, date, total, items, expenseIds, type } = await request.json();
+    const body = await request.json();
+    const { serial, date, total, items, expenseIds, type } = body;
 
-    if (!serial || !date || !total || !expenseIds) {
-      return NextResponse.json({ success: false, message: "Missing voucher data." }, { status: 400 });
+    console.log(">>> Saving Voucher:", { serial, date, type, expenseCount: expenseIds?.length });
+
+    if (!serial || !date || !total || !expenseIds || !Array.isArray(expenseIds)) {
+      return NextResponse.json({ success: false, message: "Invalid or missing voucher data." }, { status: 400 });
     }
 
     // 1. Transaction to ensure both record save and expense linking succeed
@@ -22,7 +25,7 @@ export async function POST(request: Request) {
         data: {
           serialNumber: serial,
           date: new Date(date),
-          totalAmount: total,
+          totalAmount: parseFloat(total),
           items: items,
           type: type || "Petty Cash",
           status: "Pending",
@@ -30,15 +33,17 @@ export async function POST(request: Request) {
         }
       });
 
-      // Link expenses to this voucher so they don't appear in future generations
-      await tx.expense.updateMany({
-        where: {
-          id: { in: expenseIds }
-        },
-        data: {
-          voucherId: savedRecord.id
-        }
-      });
+      // Link expenses to this voucher
+      if (expenseIds.length > 0) {
+          await tx.expense.updateMany({
+            where: {
+              id: { in: expenseIds }
+            },
+            data: {
+              voucherId: savedRecord.id
+            }
+          });
+      }
 
       return savedRecord;
     });
@@ -50,10 +55,16 @@ export async function POST(request: Request) {
     }, { status: 201 });
 
   } catch (error: any) {
-    console.error("Voucher Save Error:", error.message);
+    console.error(">>> Voucher Save CRITICAL Error:", error);
+    
+    // Check for unique constraint on serialNumber
     if (error.code === 'P2002') {
-        return NextResponse.json({ success: false, message: "This voucher has already been saved." }, { status: 409 });
+        return NextResponse.json({ success: false, message: "Voucher Serial already exists. Please regenerate." }, { status: 409 });
     }
-    return NextResponse.json({ success: false, message: "Failed to save record." }, { status: 500 });
+    
+    return NextResponse.json({ 
+      success: false, 
+      message: error.message || "Failed to save record." 
+    }, { status: 500 });
   }
 }

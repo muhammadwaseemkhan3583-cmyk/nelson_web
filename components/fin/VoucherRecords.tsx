@@ -108,7 +108,7 @@ export default function VoucherRecords() {
                 <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Serial Search</span>
                 <input 
                     type="text" 
-                    placeholder="VC-..."
+                    placeholder="Search Serial..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="border-2 border-gray-100 rounded-lg px-4 py-2 text-xs font-bold focus:border-orange-600 outline-none w-48 transition-all"
@@ -153,36 +153,47 @@ export default function VoucherRecords() {
                     {isLoading ? (
                         <tr><td colSpan={7} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Fetching records...</td></tr>
                     ) : filteredRecords.length > 0 ? (
-                        filteredRecords.map((rec: any, index: number) => (
-                            <tr key={rec.id} className="hover:bg-blue-50 transition-colors group">
-                                <td className="border-r border-gray-200 text-center text-[10px] font-bold text-gray-400 bg-gray-50/50">{index + 1}</td>
-                                <td className="border-r border-gray-200 px-4 py-3 text-xs font-black text-gray-900 uppercase tracking-tight">{rec.serialNumber}</td>
-                                <td className="border-r border-gray-200 text-center text-xs font-bold text-gray-500 font-mono">{new Date(rec.date).toLocaleDateString('en-GB')}</td>
-                                <td className="border-r border-gray-200 px-4 py-3 text-xs font-black text-orange-600 text-right tabular-nums">PKR {rec.totalAmount.toLocaleString()}.00</td>
-                                <td className="border-r border-gray-200 px-4 py-3 text-xs font-medium text-gray-600 uppercase">{rec.preparedBy}</td>
-                                <td className="border-r border-gray-200 text-center px-2">
-                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${rec.status === 'Cleared' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                        {rec.status || 'Pending'}
-                                    </span>
-                                </td>
-                                <td className="text-center px-4 flex items-center justify-center gap-2 py-3">
-                                    <button 
-                                        onClick={() => setSelectedVoucher(rec)}
-                                        className="text-[9px] font-black uppercase text-blue-600 hover:text-blue-800 transition-colors border border-blue-100 px-3 py-1 rounded hover:bg-blue-100"
-                                    >
-                                        Inspect
-                                    </button>
-                                    {rec.status !== 'Cleared' && rec.type === "Petty Cash" && (
+                        filteredRecords.map((rec: any, index: number) => {
+                            const isCashVoucher = rec.type === "Cash Voucher";
+                            
+                            return (
+                                <tr key={rec.id} className="hover:bg-blue-50 transition-colors group">
+                                    <td className="border-r border-gray-200 text-center text-[10px] font-bold text-gray-400 bg-gray-50/50">{index + 1}</td>
+                                    <td className="border-r border-gray-200 px-4 py-3 text-xs font-black text-gray-900 uppercase tracking-tight">
+                                        <div className="flex items-center gap-2">
+                                            <span>{rec.serialNumber}</span>
+                                            <span className={`text-[7px] font-black px-1 py-0.5 rounded border ${isCashVoucher ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
+                                                {isCashVoucher ? 'CV' : 'PC'}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="border-r border-gray-200 text-center text-xs font-bold text-gray-500 font-mono">{new Date(rec.date).toLocaleDateString('en-GB')}</td>
+                                    <td className="border-r border-gray-200 px-4 py-3 text-xs font-black text-orange-600 text-right tabular-nums">PKR {rec.totalAmount.toLocaleString()}.00</td>
+                                    <td className="border-r border-gray-200 px-4 py-3 text-xs font-medium text-gray-600 uppercase">{rec.preparedBy}</td>
+                                    <td className="border-r border-gray-200 text-center px-2">
+                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${isCashVoucher ? 'bg-blue-100 text-blue-700' : rec.status === 'Cleared' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                            {isCashVoucher ? 'Recorded' : (rec.status || 'Pending')}
+                                        </span>
+                                    </td>
+                                    <td className="text-center px-4 flex items-center justify-center gap-2 py-3">
                                         <button 
-                                            onClick={() => handleOpenClearModal(rec.id)}
-                                            className="text-[9px] font-black uppercase text-green-600 hover:text-green-800 transition-colors border border-green-100 px-3 py-1 rounded hover:bg-green-100"
+                                            onClick={() => setSelectedVoucher(rec)}
+                                            className="text-[9px] font-black uppercase text-blue-600 hover:text-blue-800 transition-colors border border-blue-100 px-3 py-1 rounded hover:bg-blue-100"
                                         >
-                                            Clear
+                                            Inspect
                                         </button>
-                                    )}
-                                </td>
-                            </tr>
-                        ))
+                                        {!isCashVoucher && rec.status !== 'Cleared' && (
+                                            <button 
+                                                onClick={() => handleOpenClearModal(rec.id)}
+                                                className="text-[9px] font-black uppercase text-green-600 hover:text-green-800 transition-colors border border-green-100 px-3 py-1 rounded hover:bg-green-100"
+                                            >
+                                                Clear
+                                            </button>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })
                     ) : (
                         <tr><td colSpan={7} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs bg-white">No vouchers found for this period</td></tr>
                     )}
