@@ -77,6 +77,7 @@ export default function GenerateVoucher() {
       });
       const result = await response.json();
       if (result.success || response.status === 409) {
+        alert("Voucher saved successfully.");
         // Now show modal for printing
         setShowPrintModal(true);
         setIsGenerated(false);

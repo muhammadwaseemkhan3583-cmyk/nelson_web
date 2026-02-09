@@ -56,7 +56,7 @@ export default function ExpenseReports() {
   // Balance Calculation
   const MAIN_AMOUNT = 50000;
   const pendingVouchersTotal = vouchers
-    .filter(v => v.status === "Pending")
+    .filter(v => v.status === "Pending" && v.type === "Petty Cash")
     .reduce((sum, v) => sum + v.totalAmount, 0);
   const currentBalance = MAIN_AMOUNT - pendingVouchersTotal;
 

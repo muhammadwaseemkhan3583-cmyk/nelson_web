@@ -9,7 +9,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: auth.error }, { status: 401 });
     }
 
-    const { serial, date, total, items, expenseIds } = await request.json();
+    const { serial, date, total, items, expenseIds, type } = await request.json();
 
     if (!serial || !date || !total || !expenseIds) {
       return NextResponse.json({ success: false, message: "Missing voucher data." }, { status: 400 });
@@ -24,6 +24,8 @@ export async function POST(request: Request) {
           date: new Date(date),
           totalAmount: total,
           items: items,
+          type: type || "Petty Cash",
+          status: "Pending",
           preparedBy: "Finance Officer"
         }
       });

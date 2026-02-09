@@ -172,7 +172,7 @@ export default function VoucherRecords() {
                                     >
                                         Inspect
                                     </button>
-                                    {rec.status !== 'Cleared' && (
+                                    {rec.status !== 'Cleared' && rec.type === "Petty Cash" && (
                                         <button 
                                             onClick={() => handleOpenClearModal(rec.id)}
                                             className="text-[9px] font-black uppercase text-green-600 hover:text-green-800 transition-colors border border-green-100 px-3 py-1 rounded hover:bg-green-100"
