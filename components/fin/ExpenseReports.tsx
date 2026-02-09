@@ -6,27 +6,42 @@ import { authenticatedFetch } from "@/lib/utils";
 export default function ExpenseReports() {
   const [loading, setLoading] = useState(false);
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [vouchers, setVouchers] = useState<any[]>([]);
   
   // Header Filter (Controls Metrics)
   const [headerTimeframe, setHeaderTimeframe] = useState("current");
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
   // Table Filters (The "Sheet" below)
+  const [tableYear, setTableYear] = useState(new Date().getFullYear());
   const [tableTimeframe, setTableTimeframe] = useState("1h"); // Default: Last 1 Hour
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
+  const [tableFromMonth, setTableFromMonth] = useState(1);
+  const [tableToMonth, setTableToMonth] = useState(new Date().getMonth() + 1);
   const [tableType, setTableType] = useState("All");
   const [tableDept, setTableDept] = useState("All");
   const [tableCat, setTableCat] = useState("All");
+  const [tableSearchName, setTableSearchName] = useState("");
 
-  const fetchAllExpenses = async () => {
+  const months = [
+    { val: 1, name: "Jan" }, { val: 2, name: "Feb" }, { val: 3, name: "Mar" },
+    { val: 4, name: "Apr" }, { val: 5, name: "May" }, { val: 6, name: "Jun" },
+    { val: 7, name: "Jul" }, { val: 8, name: "Aug" }, { val: 9, name: "Sep" },
+    { val: 10, name: "Oct" }, { val: 11, name: "Nov" }, { val: 12, name: "Dec" }
+  ];
+
+  const fetchAllData = async () => {
     setLoading(true);
     try {
-      const response = await authenticatedFetch(`/api/expenses/list?timeframe=all`);
-      const data = await response.json();
-      if (data.success) {
-        setExpenses(data.expenses);
-      }
+      const [expRes, vocRes] = await Promise.all([
+        authenticatedFetch(`/api/expenses/list?timeframe=all`),
+        authenticatedFetch(`/api/vouchers/list`)
+      ]);
+      
+      const expData = await expRes.json();
+      const vocData = await vocRes.json();
+
+      if (expData.success) setExpenses(expData.expenses);
+      if (vocData.success) setVouchers(vocData.vouchers);
     } catch (error) {
       console.error("Fetch Error:", error);
     } finally {
@@ -35,12 +50,19 @@ export default function ExpenseReports() {
   };
 
   useEffect(() => {
-    fetchAllExpenses();
+    fetchAllData();
   }, []);
 
-  // Filter options derived from data
-  const departments = ["All", ...Array.from(new Set(expenses.map((e: any) => e.department).filter(Boolean)))].sort();
-  const categories = ["All", ...Array.from(new Set(expenses.map((e: any) => e.category).filter(Boolean)))].sort();
+  // Balance Calculation
+  const MAIN_AMOUNT = 50000;
+  const pendingVouchersTotal = vouchers
+    .filter(v => v.status === "Pending")
+    .reduce((sum, v) => sum + v.totalAmount, 0);
+  const currentBalance = MAIN_AMOUNT - pendingVouchersTotal;
+
+  // Filter options derived from data (Normalized for uniqueness)
+  const departments = ["All", ...Array.from(new Set(expenses.map((e: any) => (e.department || "").trim().toUpperCase()).filter(Boolean)))].sort();
+  const categories = ["All", ...Array.from(new Set(expenses.map((e: any) => (e.category || "").trim().toUpperCase()).filter(Boolean)))].sort();
 
   // Metrics Data (Filtered by Header Timeframe/Year)
   const metricsData = useMemo(() => {
@@ -88,46 +110,47 @@ export default function ExpenseReports() {
   const filteredTableData = useMemo(() => {
     return expenses.filter((e: any) => {
       const matchType = tableType === "All" || e.type === tableType;
-      const matchDept = tableDept === "All" || e.department === tableDept;
-      const matchCat = tableCat === "All" || e.category === tableCat;
+      const matchDept = tableDept === "All" || (e.department || "").trim().toUpperCase() === tableDept;
+      const matchCat = tableCat === "All" || (e.category || "").trim().toUpperCase() === tableCat;
       
       const eDate = new Date(e.date);
       const now = new Date();
+
+      // 1. Search by Name
+      if (tableSearchName && !e.empName?.toLowerCase().includes(tableSearchName.toLowerCase())) return false;
+
+      // 2. Year Filter
+      if (eDate.getFullYear() !== tableYear) return false;
+
       let matchTime = true;
 
-      // Custom Date Range Logic (Priority)
-      if (tableTimeframe === "custom") {
-        if (!fromDate || !toDate) return false; // Show nothing if range is incomplete
-        const start = new Date(fromDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(toDate);
-        end.setHours(23, 59, 59, 999);
-        matchTime = eDate >= start && eDate <= end;
-      } else {
-        // Preset Timeframe Logic
-        if (tableTimeframe === "1h") {
-          matchTime = (now.getTime() - eDate.getTime()) <= (60 * 60 * 1000);
-        } else if (tableTimeframe === "1m") {
-          const oneMonthAgo = new Date(); oneMonthAgo.setMonth(now.getMonth() - 1);
-          matchTime = eDate >= oneMonthAgo;
-        } else if (tableTimeframe === "2m") {
-          const twoMonthsAgo = new Date(); twoMonthsAgo.setMonth(now.getMonth() - 2);
-          matchTime = eDate >= twoMonthsAgo;
-        } else if (tableTimeframe === "3m") {
-          const threeMonthsAgo = new Date(); threeMonthsAgo.setMonth(now.getMonth() - 3);
-          matchTime = eDate >= threeMonthsAgo;
-        }
+      // Timeframe Logic
+      if (tableTimeframe === "1h") {
+        matchTime = (now.getTime() - eDate.getTime()) <= (60 * 60 * 1000);
+      } else if (tableTimeframe === "1d") {
+        matchTime = (now.getTime() - eDate.getTime()) <= (24 * 60 * 60 * 1000);
+      } else if (tableTimeframe === "15d") {
+        matchTime = (now.getTime() - eDate.getTime()) <= (15 * 24 * 60 * 60 * 1000);
+      } else if (tableTimeframe === "month_range") {
+        const m = eDate.getMonth() + 1;
+        matchTime = m >= tableFromMonth && m <= tableToMonth;
+      } else if (tableTimeframe === "1m") {
+        const oneMonthAgo = new Date(); oneMonthAgo.setMonth(now.getMonth() - 1);
+        matchTime = eDate >= oneMonthAgo;
+      } else if (tableTimeframe === "3m") {
+        const threeMonthsAgo = new Date(); threeMonthsAgo.setMonth(now.getMonth() - 3);
+        matchTime = eDate >= threeMonthsAgo;
       }
 
       return matchType && matchDept && matchCat && matchTime;
     });
-  }, [expenses, tableTimeframe, fromDate, toDate, tableType, tableDept, tableCat]);
+  }, [expenses, tableYear, tableTimeframe, tableFromMonth, tableToMonth, tableType, tableDept, tableCat, tableSearchName]);
 
   // Calculations
   const totalMonthly = metricsData.reduce((sum: number, e: any) => sum + e.amount, 0);
   
   const deptBreakdown = metricsData.reduce((acc: any, e: any) => {
-    const d = (e.department || "Other").trim();
+    const d = (e.department || "Other").trim().toUpperCase();
     acc[d] = (acc[d] || 0) + e.amount;
     return acc;
   }, {});
@@ -146,7 +169,7 @@ export default function ExpenseReports() {
       
       {/* HEADER FILTERS (Time Period/Year) */}
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 flex flex-wrap justify-between items-end print:hidden">
-        <div className="flex gap-6">
+        <div className="flex gap-6 items-end">
             <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Year</label>
                 <select value={selectedYear} onChange={(e) => setSelectedYear(parseInt(e.target.value))} className="block w-32 border-gray-300 rounded-lg text-sm font-bold bg-gray-50 text-gray-900 focus:ring-orange-500 outline-none">
@@ -164,10 +187,20 @@ export default function ExpenseReports() {
                 </select>
             </div>
         </div>
-        <button onClick={() => window.print()} className="bg-gray-900 text-white px-6 py-2.5 rounded-lg font-bold text-sm flex items-center gap-2 hover:bg-orange-600 transition-all shadow-md active:scale-95">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 00-2 2h2m2 4h10a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 00-2 2zM12 17h.01"></path></svg>
-          Print Report
-        </button>
+
+        <div className="flex gap-10 items-end">
+            <div className="flex gap-8 text-right">
+                <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Main Amount</p>
+                    <p className="text-xl font-black text-gray-900 mt-1">Rs. {MAIN_AMOUNT.toLocaleString()}</p>
+                </div>
+                <div className="h-10 w-px bg-gray-100"></div>
+                <div>
+                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest leading-none">Current Balance</p>
+                    <p className={`text-xl font-black mt-1 ${currentBalance < 5000 ? 'text-red-600' : 'text-green-600'}`}>Rs. {currentBalance.toLocaleString()}</p>
+                </div>
+            </div>
+        </div>
       </div>
 
       <div id="printable-report" className="space-y-8">
@@ -231,69 +264,87 @@ export default function ExpenseReports() {
             </div>
         </div>
 
-        {/* DETAILED SHEET SECTION */}
+        {/* DETAILED SHEET SECTION - Refactored to match ViewSheets UI */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-xl overflow-hidden">
-            <div className="bg-gray-50 px-8 py-6 border-b border-gray-200 flex flex-wrap justify-between items-center gap-6 print:hidden">
-                <div className="flex items-center gap-3">
-                    <div className="w-2 h-6 bg-orange-600 rounded-full"></div>
-                    <h3 className="text-sm font-black uppercase tracking-widest text-gray-900">Detailed Expense Sheet</h3>
+            <div className="bg-gray-900 px-8 py-6 flex flex-wrap items-end gap-6 shadow-2xl border-b border-gray-800 print:hidden">
+                <div className="flex items-center gap-4 mr-4">
+                    <div className="w-2 h-8 bg-orange-600 rounded-full"></div>
+                    <div>
+                        <h2 className="text-sm font-black uppercase tracking-widest text-white leading-none">Detailed Sheet</h2>
+                        <p className="text-[8px] text-gray-500 font-bold uppercase mt-1">Report Explorer</p>
+                    </div>
                 </div>
 
-                <div className="flex flex-wrap gap-4 items-center">
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Period</span>
-                        <select value={tableTimeframe} onChange={(e) => { setTableTimeframe(e.target.value); setFromDate(""); setToDate(""); }} className="border-2 border-gray-100 rounded-lg px-3 py-1.5 text-xs font-bold text-gray-900 focus:border-orange-600 outline-none bg-white">
+                <div className="flex flex-wrap gap-4 items-end flex-grow">
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">Year</label>
+                        <select value={tableYear} onChange={(e) => setTableYear(parseInt(e.target.value))} className="block bg-gray-800 border-none rounded-xl text-[10px] font-black uppercase text-white px-4 py-2.5 focus:ring-2 focus:ring-orange-600 outline-none cursor-pointer">
+                            {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                        </select>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">Period</label>
+                        <select value={tableTimeframe} onChange={(e) => setTableTimeframe(e.target.value)} className="block bg-gray-800 border-none rounded-xl text-[10px] font-black uppercase text-white px-4 py-2.5 focus:ring-2 focus:ring-orange-600 outline-none cursor-pointer">
                             <option value="1h">Last 1 Hour</option>
-                            <option value="1m">1 Month</option>
-                            <option value="2m">2 Months</option>
-                            <option value="3m">3 Months</option>
-                            <option value="custom">Custom Range</option>
+                            <option value="1d">Last 24 Hours</option>
+                            <option value="15d">Last 15 Days</option>
+                            <option value="month_range">Month Range</option>
+                            <option value="1m">1 Month (Recent)</option>
+                            <option value="3m">3 Months (Recent)</option>
                             <option value="all">All Records</option>
                         </select>
                     </div>
 
-                    {tableTimeframe === "custom" && (
+                    {tableTimeframe === "month_range" && (
                         <>
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">From Date</span>
-                                <input 
-                                    type="date" 
-                                    value={fromDate} 
-                                    onChange={(e) => setFromDate(e.target.value)} 
-                                    className="border-2 border-gray-100 rounded-lg px-2 py-1 text-[10px] font-bold text-gray-900 focus:border-orange-600 outline-none"
-                                />
+                            <div className="space-y-1">
+                                <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">From Month</label>
+                                <select value={tableFromMonth} onChange={(e) => setTableFromMonth(parseInt(e.target.value))} className="block bg-gray-800 border-none rounded-xl text-[10px] font-black uppercase text-white px-4 py-2.5 focus:ring-2 focus:ring-orange-600 outline-none cursor-pointer">
+                                    {months.map(m => <option key={m.val} value={m.val}>{m.name}</option>)}
+                                </select>
                             </div>
-                            <div className="flex flex-col gap-1">
-                                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">To Date</span>
-                                <input 
-                                    type="date" 
-                                    value={toDate} 
-                                    onChange={(e) => setToDate(e.target.value)} 
-                                    className="border-2 border-gray-100 rounded-lg px-2 py-1 text-[10px] font-bold text-gray-900 focus:border-orange-600 outline-none"
-                                />
+                            <div className="space-y-1">
+                                <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">To Month</label>
+                                <select value={tableToMonth} onChange={(e) => setTableToMonth(parseInt(e.target.value))} className="block bg-gray-800 border-none rounded-xl text-[10px] font-black uppercase text-white px-4 py-2.5 focus:ring-2 focus:ring-orange-600 outline-none cursor-pointer">
+                                    {months.map(m => <option key={m.val} value={m.val}>{m.name}</option>)}
+                                </select>
                             </div>
                         </>
                     )}
 
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Type</span>
-                        <select value={tableType} onChange={(e) => setTableType(e.target.value)} className="border-2 border-gray-100 rounded-lg px-3 py-1.5 text-xs font-bold text-gray-900 focus:border-orange-600 outline-none bg-white">
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">Type</label>
+                        <select value={tableType} onChange={(e) => setTableType(e.target.value)} className="block bg-gray-800 border-none rounded-xl text-[10px] font-black uppercase text-white px-4 py-2.5 focus:ring-2 focus:ring-orange-600 outline-none cursor-pointer">
                             <option value="All">All Types</option>
                             <option value="Petty Cash">Petty Cash</option>
                             <option value="Cash Voucher">Cash Voucher</option>
                         </select>
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Dept</span>
-                        <select value={tableDept} onChange={(e) => setTableDept(e.target.value)} className="border-2 border-gray-100 rounded-lg px-3 py-1.5 text-xs font-bold text-gray-900 focus:border-orange-600 outline-none bg-white">
+
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">Dept</label>
+                        <select value={tableDept} onChange={(e) => setTableDept(e.target.value)} className="block bg-gray-800 border-none rounded-xl text-[10px] font-black uppercase text-white px-4 py-2.5 focus:ring-2 focus:ring-orange-600 outline-none cursor-pointer max-w-[150px]">
                             {departments.map(d => <option key={d} value={d}>{d}</option>)}
                         </select>
                     </div>
-                    <div className="flex flex-col gap-1">
-                        <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Cat</span>
-                        <select value={tableCat} onChange={(e) => setTableCat(e.target.value)} className="border-2 border-gray-100 rounded-lg px-3 py-1.5 text-xs font-bold text-gray-900 focus:border-orange-600 outline-none bg-white">
+
+                    <div className="space-y-1">
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">Category</label>
+                        <select value={tableCat} onChange={(e) => setTableCat(e.target.value)} className="block bg-gray-800 border-none rounded-xl text-[10px] font-black uppercase text-white px-4 py-2.5 focus:ring-2 focus:ring-orange-600 outline-none cursor-pointer max-w-[150px]">
                             {categories.map(c => <option key={c} value={c}>{c}</option>)}
                         </select>
+                    </div>
+
+                    <div className="space-y-1 flex-grow max-w-xs">
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">Employee Search</label>
+                        <input 
+                            type="text" 
+                            placeholder="Search name..."
+                            value={tableSearchName}
+                            onChange={(e) => setTableSearchName(e.target.value)}
+                            className="block w-full bg-gray-800 border-none rounded-xl text-[10px] font-bold text-white px-4 py-2.5 focus:ring-2 focus:ring-orange-600 outline-none"
+                        />
                     </div>
                 </div>
             </div>

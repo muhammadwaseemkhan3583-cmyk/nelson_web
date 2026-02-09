@@ -3,6 +3,8 @@
 import { useState, useEffect, useMemo } from "react";
 import VoucherPrintModal from "./VoucherPrintModal";
 import { authenticatedFetch } from "@/lib/utils";
+import { auth } from "@/lib/firebase";
+import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 
 export default function VoucherRecords() {
   const [searchTerm, setSearchTerm] = useState("");
@@ -11,22 +13,68 @@ export default function VoucherRecords() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVoucher, setSelectedVoucher] = useState<any>(null);
 
-  useEffect(() => {
-    const fetchVouchers = async () => {
-      try {
-        const response = await authenticatedFetch("/api/vouchers/list");
-        const result = await response.json();
-        if (result.success) {
-          setVouchers(result.vouchers);
-        }
-      } catch (error) {
-        console.error("Fetch Error:", error);
-      } finally {
-        setIsLoading(false);
+  // Password Modal State for Clearing
+  const [isPassModalOpen, setIsPassModalOpen] = useState(false);
+  const [password, setPassword] = useState("");
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [passError, setPassError] = useState("");
+  const [voucherToClear, setVoucherToClear] = useState<string | null>(null);
+
+  const fetchVouchers = async () => {
+    setIsLoading(true);
+    try {
+      const response = await authenticatedFetch("/api/vouchers/list");
+      const result = await response.json();
+      if (result.success) {
+        setVouchers(result.vouchers);
       }
-    };
+    } catch (error) {
+      console.error("Fetch Error:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchVouchers();
   }, []);
+
+  const handleOpenClearModal = (id: string) => {
+      setVoucherToClear(id);
+      setIsPassModalOpen(true);
+      setPassError("");
+      setPassword("");
+  };
+
+  const handleClearVoucher = async () => {
+      const user = auth.currentUser;
+      if (!user || !user.email || !voucherToClear) return;
+
+      setIsVerifying(true);
+      setPassError("");
+
+      try {
+          const credential = EmailAuthProvider.credential(user.email, password);
+          await reauthenticateWithCredential(user, credential);
+          
+          const response = await authenticatedFetch("/api/vouchers/clear", {
+              method: "PUT",
+              body: JSON.stringify({ id: voucherToClear })
+          });
+          const result = await response.json();
+          if (result.success) {
+              alert("Voucher cleared successfully.");
+              setIsPassModalOpen(false);
+              fetchVouchers();
+          } else {
+              setPassError(result.message);
+          }
+      } catch (error: any) {
+          setPassError("Incorrect password. Access denied.");
+      } finally {
+          setIsVerifying(false);
+      }
+  };
 
   const filteredRecords = useMemo(() => {
     return vouchers.filter((rec: any) => {
@@ -97,12 +145,13 @@ export default function VoucherRecords() {
                         <th className="w-32 border border-gray-300 py-3 text-[9px] font-black uppercase text-center">Issue Date</th>
                         <th className="w-40 border border-gray-300 py-3 text-[9px] font-black uppercase text-right px-4">Net Amount</th>
                         <th className="w-40 border border-gray-300 py-3 text-[9px] font-black uppercase text-left px-4">Officer</th>
-                        <th className="border border-gray-300 py-3 text-[9px] font-black uppercase text-center text-gray-400">View</th>
+                        <th className="w-24 border border-gray-300 py-3 text-[9px] font-black uppercase text-center">Status</th>
+                        <th className="border border-gray-300 py-3 text-[9px] font-black uppercase text-center text-gray-400">Actions</th>
                     </tr>
                 </thead>
                 <tbody className="bg-white">
                     {isLoading ? (
-                        <tr><td colSpan={6} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Fetching records...</td></tr>
+                        <tr><td colSpan={7} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Fetching records...</td></tr>
                     ) : filteredRecords.length > 0 ? (
                         filteredRecords.map((rec: any, index: number) => (
                             <tr key={rec.id} className="hover:bg-blue-50 transition-colors group">
@@ -111,18 +160,31 @@ export default function VoucherRecords() {
                                 <td className="border-r border-gray-200 text-center text-xs font-bold text-gray-500 font-mono">{new Date(rec.date).toLocaleDateString('en-GB')}</td>
                                 <td className="border-r border-gray-200 px-4 py-3 text-xs font-black text-orange-600 text-right tabular-nums">PKR {rec.totalAmount.toLocaleString()}.00</td>
                                 <td className="border-r border-gray-200 px-4 py-3 text-xs font-medium text-gray-600 uppercase">{rec.preparedBy}</td>
-                                <td className="text-center px-4">
+                                <td className="border-r border-gray-200 text-center px-2">
+                                    <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${rec.status === 'Cleared' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
+                                        {rec.status || 'Pending'}
+                                    </span>
+                                </td>
+                                <td className="text-center px-4 flex items-center justify-center gap-2 py-3">
                                     <button 
                                         onClick={() => setSelectedVoucher(rec)}
-                                        className="text-[9px] font-black uppercase text-blue-600 hover:text-blue-800 transition-colors flex items-center gap-1 mx-auto border border-blue-100 px-3 py-1 rounded hover:bg-blue-100"
+                                        className="text-[9px] font-black uppercase text-blue-600 hover:text-blue-800 transition-colors border border-blue-100 px-3 py-1 rounded hover:bg-blue-100"
                                     >
-                                        Inspect Voucher
+                                        Inspect
                                     </button>
+                                    {rec.status !== 'Cleared' && (
+                                        <button 
+                                            onClick={() => handleOpenClearModal(rec.id)}
+                                            className="text-[9px] font-black uppercase text-green-600 hover:text-green-800 transition-colors border border-green-100 px-3 py-1 rounded hover:bg-green-100"
+                                        >
+                                            Clear
+                                        </button>
+                                    )}
                                 </td>
                             </tr>
                         ))
                     ) : (
-                        <tr><td colSpan={6} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs bg-white">No vouchers found for this period</td></tr>
+                        <tr><td colSpan={7} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs bg-white">No vouchers found for this period</td></tr>
                     )}
                 </tbody>
             </table>
@@ -150,6 +212,58 @@ export default function VoucherRecords() {
           voucher={selectedVoucher}
           onClose={() => setSelectedVoucher(null)}
         />
+      )}
+
+      {/* PASSWORD VERIFICATION MODAL FOR CLEARING */}
+      {isPassModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-slideUp border border-gray-100">
+                  <div className="bg-gray-900 p-6 text-center">
+                      <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/20 text-white">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                      </div>
+                      <h3 className="text-white font-black uppercase tracking-widest text-sm leading-none">Voucher Clearing</h3>
+                      <p className="text-gray-500 text-[9px] font-bold uppercase mt-2 tracking-tighter">Enter password to return amount to balance</p>
+                  </div>
+                  
+                  <div className="p-8">
+                      <div className="space-y-4">
+                          <div className="space-y-1">
+                              <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Current User Password</label>
+                              <input 
+                                  type="password" 
+                                  value={password}
+                                  onChange={(e) => setPassword(e.target.value)}
+                                  placeholder="••••••••"
+                                  className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-green-600 transition-all"
+                                  onKeyDown={(e) => e.key === 'Enter' && handleClearVoucher()}
+                                  autoFocus
+                              />
+                          </div>
+                          
+                          {passError && <p className="text-red-500 text-[9px] font-black uppercase text-center animate-pulse">{passError}</p>}
+
+                          <div className="grid grid-cols-2 gap-3 pt-2">
+                              <button 
+                                  onClick={() => setIsPassModalOpen(false)}
+                                  className="py-3 rounded-xl text-[10px] font-black uppercase text-gray-400 hover:bg-gray-50 transition-all"
+                              >
+                                  Cancel
+                              </button>
+                              <button 
+                                  onClick={handleClearVoucher}
+                                  disabled={isVerifying || !password}
+                                  className="py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-green-100 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:shadow-none"
+                              >
+                                  {isVerifying ? (
+                                      <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                  ) : "Clear Voucher"}
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
       )}
     </div>
   );

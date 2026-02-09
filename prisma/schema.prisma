@@ -46,5 +46,6 @@ model VoucherRecord {
   totalAmount  Float
   items        Json     
   preparedBy   String?
+  status       String   @default("Pending") // "Pending" or "Cleared"
   createdAt    DateTime @default(now())
 }

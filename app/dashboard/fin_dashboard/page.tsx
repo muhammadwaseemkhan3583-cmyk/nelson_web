@@ -198,7 +198,7 @@ export default function FinanceDashboardPage() {
           )}
 
           <div className="flex-grow p-8 bg-gray-50 overflow-auto">
-            <div className="max-w-7xl mx-auto h-full">
+            <div className="max-w-[1600px] mx-auto h-full">
                 {/* Module Views */}
                 {activeTab === "expenses_add" && <AddExpense onClose={() => setActiveTab("expenses_sheets")} />}
                 {activeTab === "expenses_sheets" && <ViewSheets />}
