@@ -66,6 +66,16 @@ export default function ViewSheets() {
     const row = expenses.find(e => e.id === id);
     if (!row) return;
 
+    // Check 36 hour rule
+    const createdTime = new Date(row.createdAt).getTime();
+    const now = new Date().getTime();
+    const diffHours = (now - createdTime) / (1000 * 60 * 60);
+
+    if (diffHours > 36) {
+        alert("Old entries cannot be edited (Exceeded 36 Hours).");
+        return;
+    }
+
     setExpenses(expenses.map(e => e.id === id ? { ...e, [field]: value } : e));
     setModifiedRowIds(prev => new Set(prev).add(id));
   };
@@ -320,7 +330,8 @@ export default function ViewSheets() {
                     <tr><td colSpan={10} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Synchronizing Live Database...</td></tr>
                 ) : filteredData.length > 0 ? (
                   filteredData.map((row: any, index: number) => {
-                    const canEditRow = isEditMode;
+                    const isEditable = (new Date().getTime() - new Date(row.createdAt).getTime()) / (1000 * 60 * 60) <= 36;
+                    const canEditRow = isEditMode && isEditable;
 
                     return (
                         <tr key={row.id} className={`hover:bg-blue-50 transition-colors group border-b border-gray-100 uppercase ${modifiedRowIds.has(row.id) ? 'bg-orange-50/50' : ''}`}>
@@ -331,6 +342,7 @@ export default function ViewSheets() {
                             ) : (
                                 <div className="flex flex-col py-2">
                                     <span className="font-bold text-[10px]">{new Date(row.date).toLocaleDateString('en-GB')}</span>
+                                    {!isEditable && isEditMode && <span className="text-[7px] text-red-500 font-black">LOCKED</span>}
                                 </div>
                             )}
                         </td>
