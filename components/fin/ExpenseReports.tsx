@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { authenticatedFetch } from "@/lib/utils";
+import VoucherRecords from "./VoucherRecords";
 
-export default function ExpenseReports() {
+export default function ExpenseReports({ onTabChange }: { onTabChange?: (tab: string) => void }) {
   const [loading, setLoading] = useState(false);
   const [expenses, setExpenses] = useState<any[]>([]);
   const [vouchers, setVouchers] = useState<any[]>([]);
+  const [isVoucherModalOpen, setIsVoucherModalOpen] = useState(false);
   
   // Header Filter (Controls Metrics)
   const [headerTimeframe, setHeaderTimeframe] = useState("current");
@@ -20,7 +22,7 @@ export default function ExpenseReports() {
   const [tableType, setTableType] = useState("All");
   const [tableDept, setTableDept] = useState("All");
   const [tableCat, setTableCat] = useState("All");
-  const [tableSearchName, setTableSearchName] = useState("");
+  const [tableVoucherNum, setTableVoucherNum] = useState("");
 
   const months = [
     { val: 1, name: "Jan" }, { val: 2, name: "Feb" }, { val: 3, name: "Mar" },
@@ -109,6 +111,17 @@ export default function ExpenseReports() {
   // Table Data (The "Sheet" - Filtered by specific table filters)
   const filteredTableData = useMemo(() => {
     return expenses.filter((e: any) => {
+      // 1. Search by Voucher Number (Serial or UUID) - Bypasses other filters
+      if (tableVoucherNum) {
+        const searchVal = tableVoucherNum.toLowerCase();
+        const matchedVoucher = vouchers.find(v => v.serialNumber.toLowerCase() === searchVal);
+        return (
+          e.voucherId?.toLowerCase() === searchVal || 
+          (matchedVoucher && e.voucherId === matchedVoucher.id)
+        );
+      }
+
+      // 2. Regular Filters
       const matchType = tableType === "All" || e.type === tableType;
       const matchDept = tableDept === "All" || (e.department || "").trim().toUpperCase() === tableDept;
       const matchCat = tableCat === "All" || (e.category || "").trim().toUpperCase() === tableCat;
@@ -116,10 +129,7 @@ export default function ExpenseReports() {
       const eDate = new Date(e.date);
       const now = new Date();
 
-      // 1. Search by Name
-      if (tableSearchName && !e.empName?.toLowerCase().includes(tableSearchName.toLowerCase())) return false;
-
-      // 2. Year Filter
+      // Year Filter
       if (eDate.getFullYear() !== tableYear) return false;
 
       let matchTime = true;
@@ -144,7 +154,7 @@ export default function ExpenseReports() {
 
       return matchType && matchDept && matchCat && matchTime;
     });
-  }, [expenses, tableYear, tableTimeframe, tableFromMonth, tableToMonth, tableType, tableDept, tableCat, tableSearchName]);
+  }, [expenses, tableYear, tableTimeframe, tableFromMonth, tableToMonth, tableType, tableDept, tableCat, tableVoucherNum]);
 
   // Calculations
   const totalMonthly = metricsData.reduce((sum: number, e: any) => sum + e.amount, 0);
@@ -200,6 +210,16 @@ export default function ExpenseReports() {
                     <p className={`text-xl font-black mt-1 ${currentBalance < 5000 ? 'text-red-600' : 'text-green-600'}`}>Rs. {currentBalance.toLocaleString()}</p>
                 </div>
             </div>
+            <button 
+                onClick={() => {
+                    if (onTabChange) onTabChange("expenses_records");
+                    else setIsVoucherModalOpen(true);
+                }}
+                className="bg-gray-900 text-white px-6 py-2.5 rounded-lg text-[10px] font-black uppercase tracking-[0.2em] hover:bg-orange-600 transition-all shadow-lg active:scale-95 flex items-center gap-2"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path></svg>
+                Voucher Records
+            </button>
         </div>
       </div>
 
@@ -337,12 +357,12 @@ export default function ExpenseReports() {
                     </div>
 
                     <div className="space-y-1 flex-grow max-w-xs">
-                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">Employee Search</label>
+                        <label className="text-[8px] font-black text-gray-500 uppercase tracking-widest ml-1">Voucher Search</label>
                         <input 
                             type="text" 
-                            placeholder="Search name..."
-                            value={tableSearchName}
-                            onChange={(e) => setTableSearchName(e.target.value)}
+                            placeholder="Voucher Num (e.g. VOC-001)..."
+                            value={tableVoucherNum}
+                            onChange={(e) => setTableVoucherNum(e.target.value)}
                             className="block w-full bg-gray-800 border-none rounded-xl text-[10px] font-bold text-white px-4 py-2.5 focus:ring-2 focus:ring-orange-600 outline-none"
                         />
                     </div>
@@ -353,7 +373,7 @@ export default function ExpenseReports() {
                 <table className="min-w-full text-sm">
                     <thead>
                         <tr className="bg-gray-100 text-left border-b border-gray-200">
-                            <th className="px-8 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Date / Time</th>
+                            <th className="px-8 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Date</th>
                             <th className="px-8 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Dept / Category</th>
                             <th className="px-8 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest">Source / Employee</th>
                             <th className="px-8 py-4 text-[10px] font-black text-gray-500 uppercase tracking-widest text-right">Amount</th>
@@ -363,10 +383,7 @@ export default function ExpenseReports() {
                         {filteredTableData.map((row: any, i: number) => (
                             <tr key={i} className="hover:bg-blue-50/30 transition-colors">
                                 <td className="px-8 py-4 font-black text-gray-900 whitespace-nowrap">
-                                    <div className="flex flex-col">
-                                        <span>{new Date(row.date).toLocaleDateString()}</span>
-                                        <span className="text-[10px] text-orange-600 font-bold">{new Date(row.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true })}</span>
-                                    </div>
+                                    <span>{new Date(row.date).toLocaleDateString('en-GB')}</span>
                                 </td>
                                 <td className="px-8 py-4">
                                     <div className="flex flex-col">
@@ -409,6 +426,29 @@ export default function ExpenseReports() {
           #printable-report { width: 100% !important; margin: 0 !important; padding: 0 !important; }
         }
       `}</style>
+
+      {/* VOUCHER RECORDS MODAL (For Admin Dashboard) */}
+      {isVoucherModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/90 backdrop-blur-md animate-fadeIn">
+              <div className="relative w-full max-w-[95vw] h-[90vh] bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+                  <div className="bg-gray-900 px-8 py-4 flex justify-between items-center text-white border-b border-gray-800">
+                      <div className="flex items-center gap-3">
+                        <div className="w-2 h-6 bg-orange-600 rounded-full"></div>
+                        <span className="font-black uppercase tracking-widest text-sm">Central Voucher Archive</span>
+                      </div>
+                      <button 
+                        onClick={() => setIsVoucherModalOpen(false)}
+                        className="p-2 hover:bg-white/10 rounded-full transition-all text-gray-400 hover:text-white"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                      </button>
+                  </div>
+                  <div className="flex-grow overflow-auto p-4 bg-gray-50">
+                      <VoucherRecords />
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 }

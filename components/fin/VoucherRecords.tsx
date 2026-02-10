@@ -3,7 +3,9 @@
 import { useState, useEffect, useMemo } from "react";
 import VoucherPrintModal from "./VoucherPrintModal";
 import { authenticatedFetch } from "@/lib/utils";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 
 export default function VoucherRecords() {
@@ -12,6 +14,7 @@ export default function VoucherRecords() {
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVoucher, setSelectedVoucher] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   // Password Modal State for Clearing
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
@@ -37,6 +40,17 @@ export default function VoucherRecords() {
 
   useEffect(() => {
     fetchVouchers();
+    
+    // Fetch User Role
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          setUserRole(userDoc.data().role);
+        }
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   const handleOpenClearModal = (id: string) => {
@@ -182,7 +196,7 @@ export default function VoucherRecords() {
                                         >
                                             Inspect
                                         </button>
-                                        {!isCashVoucher && rec.status !== 'Cleared' && (
+                                        {!isCashVoucher && rec.status !== 'Cleared' && userRole === 'Finance' && (
                                             <button 
                                                 onClick={() => handleOpenClearModal(rec.id)}
                                                 className="text-[9px] font-black uppercase text-green-600 hover:text-green-800 transition-colors border border-green-100 px-3 py-1 rounded hover:bg-green-100"

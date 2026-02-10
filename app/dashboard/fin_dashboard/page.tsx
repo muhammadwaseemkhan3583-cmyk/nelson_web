@@ -204,7 +204,7 @@ export default function FinanceDashboardPage() {
                 {activeTab === "expenses_sheets" && <ViewSheets />}
                 {activeTab === "expenses_print" && <PrintVoucher />}
                 {activeTab === "expenses_records" && <VoucherRecords />}
-                {activeTab === "expenses_reports" && <ExpenseReports />}
+                {activeTab === "expenses_reports" && <ExpenseReports onTabChange={setActiveTab} />}
                 
                 {activeTab === "scrap" && (
                     <div className="flex items-center justify-center h-full">

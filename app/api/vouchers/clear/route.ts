@@ -9,6 +9,10 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, message: auth.error }, { status: 401 });
     }
 
+    if (auth.role !== "Finance") {
+        return NextResponse.json({ success: false, message: "Unauthorized: Only Finance Officers can clear vouchers." }, { status: 403 });
+    }
+
     const { id } = await request.json();
 
     if (!id) {

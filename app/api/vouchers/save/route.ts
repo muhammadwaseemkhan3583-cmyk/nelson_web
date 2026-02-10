@@ -33,14 +33,14 @@ export async function POST(request: Request) {
         }
       });
 
-      // Link expenses to this voucher
+      // Link expenses to this voucher using the SERIAL NUMBER
       if (expenseIds.length > 0) {
           await tx.expense.updateMany({
             where: {
               id: { in: expenseIds }
             },
             data: {
-              voucherId: savedRecord.id
+              voucherId: serial
             }
           });
       }
