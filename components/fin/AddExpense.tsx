@@ -15,8 +15,10 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
   // Lists for dropdowns
   const [availableDepts, setAvailableDepts] = useState<string[]>([]);
   const [availableCats, setAvailableCats] = useState<string[]>([]);
+  const [availableNames, setAvailableNames] = useState<string[]>([]);
   const [newDept, setNewDept] = useState("");
   const [newCat, setNewCat] = useState("");
+  const [newName, setNewName] = useState("");
   const [serverDate, setServerDate] = useState("");
 
   const getTodayFormatted = () => {
@@ -65,8 +67,10 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
         if (result.success) {
             const depts = Array.from(new Set(result.expenses.map((e: any) => (e.department || "").trim().toUpperCase()).filter(Boolean))) as string[];
             const cats = Array.from(new Set(result.expenses.map((e: any) => (e.category || "").trim().toUpperCase()).filter(Boolean))) as string[];
+            const names = Array.from(new Set(result.expenses.map((e: any) => (e.empName || "").trim().toUpperCase()).filter(Boolean))) as string[];
             setAvailableDepts(depts.sort());
             setAvailableCats(cats.sort());
+            setAvailableNames(names.sort());
         }
     } catch (err) {
         console.error("Error fetching options:", err);
@@ -86,6 +90,14 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
       if (cleanCat && !availableCats.includes(cleanCat)) {
           setAvailableCats([...availableCats, cleanCat].sort());
           setNewCat("");
+      }
+  };
+
+  const handleAddName = () => {
+      const cleanName = newName.trim().toUpperCase();
+      if (cleanName && !availableNames.includes(cleanName)) {
+          setAvailableNames([...availableNames, cleanName].sort());
+          setNewName("");
       }
   };
 
@@ -258,6 +270,17 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
                     />
                     <button onClick={handleAddCat} className="bg-orange-600 hover:bg-orange-700 p-1 rounded text-white"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg></button>
                 </div>
+
+                <div className="flex items-center gap-2 bg-gray-800 p-1 rounded-lg border border-gray-700">
+                    <input 
+                        type="text" 
+                        placeholder="New Name..." 
+                        value={newName}
+                        onChange={(e) => setNewName(e.target.value.toUpperCase())}
+                        className="bg-transparent text-[9px] font-bold uppercase px-2 py-1 outline-none w-24"
+                    />
+                    <button onClick={handleAddName} className="bg-orange-600 hover:bg-orange-700 p-1 rounded text-white"><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg></button>
+                </div>
             </div>
         </div>
 
@@ -267,6 +290,9 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
         </datalist>
         <datalist id="cat-list">
             {availableCats.map(c => <option key={c} value={c} />)}
+        </datalist>
+        <datalist id="name-list">
+            {availableNames.map(n => <option key={n} value={n} />)}
         </datalist>
 
         {/* Data Entry Grid */}
@@ -315,7 +341,7 @@ export default function AddExpense({ onClose }: AddExpenseProps) {
                             <td className="border border-gray-200"><input list="cat-list" type="text" value={row.category || ""} onChange={(e) => handleCellChange(row.id, 'category', e.target.value.toUpperCase())} placeholder="..." className="w-full h-full px-2 py-2 text-xs border-none focus:ring-2 focus:ring-blue-500 outline-none font-bold text-gray-900" /></td>
                             <td className="border border-gray-200"><input list="dept-list" type="text" value={row.department || ""} onChange={(e) => handleCellChange(row.id, 'department', e.target.value.toUpperCase())} placeholder="..." className="w-full h-full px-2 py-2 text-xs border-none focus:ring-2 focus:ring-blue-500 outline-none text-gray-900" /></td>
                             <td className="border border-gray-200"><input type="text" value={row.empCode || ""} onChange={(e) => handleCellChange(row.id, 'empCode', e.target.value)} placeholder="Code" className="w-full h-full px-2 py-2 text-xs border-none focus:ring-2 focus:ring-blue-500 outline-none text-center text-gray-900" /></td>
-                            <td className="border border-gray-200"><input type="text" value={row.empName || ""} onChange={(e) => handleCellChange(row.id, 'empName', e.target.value)} placeholder="Employee Name" className="w-full h-full px-2 py-2 text-xs border-none focus:ring-2 focus:ring-blue-500 outline-none uppercase font-medium text-gray-900" /></td>
+                            <td className="border border-gray-200"><input list="name-list" type="text" value={row.empName || ""} onChange={(e) => handleCellChange(row.id, 'empName', e.target.value.toUpperCase())} placeholder="Employee Name" className="w-full h-full px-2 py-2 text-xs border-none focus:ring-2 focus:ring-blue-500 outline-none uppercase font-medium text-gray-900" /></td>
                             <td className="border border-gray-200"><input type="number" value={row.numPersons || ""} onChange={(e) => handleCellChange(row.id, 'numPersons', e.target.value)} placeholder="0" className="w-full h-full px-2 py-2 text-xs border-none focus:ring-2 focus:ring-blue-500 outline-none text-center text-gray-900" /></td>
                             <td className="border border-gray-200"><input type="number" value={row.numDays || ""} onChange={(e) => handleCellChange(row.id, 'numDays', e.target.value)} placeholder="0" className="w-full h-full px-2 py-2 text-xs border-none focus:ring-2 focus:ring-blue-500 outline-none text-center text-gray-900" /></td>
                         </>

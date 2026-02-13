@@ -55,7 +55,7 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
               <div className="flex items-center gap-3 text-gray-900">
                 <div>
                   <h1 className="text-lg font-black uppercase tracking-tighter leading-none">Admin<span className="text-orange-500">Soft</span></h1>
-                  <p className="text-[8px] text-gray-500 font-bold uppercase tracking-widest mt-1">Industrial Excellence Systems</p>
+                  <p className="text-[8px] text-gray-900 font-bold uppercase tracking-widest mt-1">Industrial Excellence Systems</p>
                 </div>
               </div>
               
@@ -85,10 +85,10 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
                 <tbody className="font-bold">
                   {voucher.items.map((item: any) => (
                     <tr key={item.srNo} className="h-5">
-                      <td className="border-2 border-gray-900 px-2 py-0.5 text-center text-gray-400 font-normal">{item.srNo}</td>
+                      <td className="border-2 border-gray-900 px-2 py-0.5 text-center text-gray-900 font-normal">{item.srNo}</td>
                       <td className="border-2 border-gray-900 px-2 py-0.5 uppercase tracking-tight">{item.detail}</td>
                       <td className="border-2 border-gray-900 px-2 py-0.5 text-right font-black">PKR {item.amount.toLocaleString()}.00</td>
-                      <td className="border-2 border-gray-900 px-2 py-0.5 italic text-gray-500 font-normal leading-tight text-[8px]">{item.remarks}</td>
+                      <td className="border-2 border-gray-900 px-2 py-0.5"></td>
                     </tr>
                   ))}
                   {/* Minimum 8 rows logic */}
@@ -103,8 +103,8 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-50 font-black h-8">
-                    <td colSpan={2} className="border-2 border-gray-900 px-3 py-1 text-right text-[9px] uppercase tracking-wider text-gray-500">Net Aggregate Amount:</td>
-                    <td className="border-2 border-gray-900 px-2 py-1 text-right text-sm text-orange-600 tabular-nums">PKR {voucher.totalAmount.toLocaleString()}.00</td>
+                    <td colSpan={2} className="border-2 border-gray-900 px-3 py-1 text-right text-[9px] uppercase tracking-wider text-gray-900">Net Total Amount:</td>
+                    <td className="border-2 border-gray-900 px-2 py-1 text-right text-sm text-gray-900 tabular-nums">PKR {voucher.totalAmount.toLocaleString()}.00</td>
                     <td className="border-2 border-gray-900"></td>
                   </tr>
                 </tfoot>
@@ -113,7 +113,7 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
 
             {/* Amount in Words */}
             <div className="mt-4 mb-4 flex items-center gap-2 border-b border-dashed border-gray-300 pb-1 text-gray-900">
-              <span className="text-[9px] font-black uppercase text-gray-400 tracking-widest whitespace-nowrap">Amount in Words:</span>
+              <span className="text-[9px] font-black uppercase text-gray-900 tracking-widest whitespace-nowrap">Amount in Words:</span>
               <span className="text-xs font-bold italic text-gray-900 capitalize flex-grow font-serif">
                 {formatCurrencyToWords(voucher.totalAmount)}
               </span>
@@ -123,10 +123,10 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
             <div className="grid grid-cols-3 gap-10 mt-2 text-gray-900">
               <div className="text-center"><div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase">Prepared</div></div>
               <div className="text-center"><div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase">Checked</div></div>
-              <div className="text-center"><div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase text-orange-600">Authorized</div></div>
+              <div className="text-center"><div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase text-gray-900">Authorized</div></div>
             </div>
 
-            <div className="mt-4 flex justify-between text-[6px] font-bold text-gray-300 uppercase tracking-[0.2em] text-gray-900">
+            <div className="mt-4 flex justify-between text-[6px] font-bold uppercase tracking-[0.2em] text-gray-900">
               <span>AdminSoft Secure Output</span>
               <span>Verification: {voucher.id ? voucher.id.substring(0,8).toUpperCase() : "AUTO-GEN-2026"}</span>
             </div>
