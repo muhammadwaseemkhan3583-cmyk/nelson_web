@@ -15,6 +15,7 @@ export default function VoucherRecords() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVoucher, setSelectedVoucher] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
+  const [currentUserName, setCurrentUserName] = useState<string>("");
 
   // Password Modal State for Clearing
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
@@ -22,6 +23,8 @@ export default function VoucherRecords() {
   const [isVerifying, setIsVerifying] = useState(false);
   const [passError, setPassError] = useState("");
   const [voucherToClear, setVoucherToClear] = useState<string | null>(null);
+  const [voucherToSync, setVoucherToSync] = useState<string | null>(null);
+  const [syncPreview, setSyncPreview] = useState<any | null>(null);
 
   const fetchVouchers = async () => {
     setIsLoading(true);
@@ -41,23 +44,79 @@ export default function VoucherRecords() {
   useEffect(() => {
     fetchVouchers();
     
-    // Fetch User Role
+    // Fetch User Role and Name
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
-          setUserRole(userDoc.data().role);
+          const data = userDoc.data();
+          setUserRole(data.role);
+          setCurrentUserName(data.name);
         }
       }
     });
     return () => unsubscribe();
   }, []);
 
+  const handleInspectVoucher = (rec: any) => {
+      // If DB has generic name, use current user name for print context
+      const augmentedVoucher = {
+          ...rec,
+          preparedBy: (rec.preparedBy === "Finance Officer" || !rec.preparedBy) ? currentUserName : rec.preparedBy
+      };
+      setSelectedVoucher(augmentedVoucher);
+  };
+
   const handleOpenClearModal = (id: string) => {
       setVoucherToClear(id);
+      setVoucherToSync(null);
       setIsPassModalOpen(true);
       setPassError("");
       setPassword("");
+  };
+
+  const handleOpenSyncModal = (rec: any) => {
+      setSyncPreview(rec);
+      setVoucherToSync(rec.serialNumber);
+      setVoucherToClear(null);
+      setIsPassModalOpen(false); // Open preview first
+  };
+
+  const handleConfirmSyncPreview = () => {
+      setIsPassModalOpen(true);
+      setPassError("");
+      setPassword("");
+  };
+
+  const handleSyncVoucher = async () => {
+    const user = auth.currentUser;
+    if (!user || !user.email || !voucherToSync) return;
+
+    setIsVerifying(true);
+    setPassError("");
+
+    try {
+        const credential = EmailAuthProvider.credential(user.email, password);
+        await reauthenticateWithCredential(user, credential);
+        
+        const response = await authenticatedFetch("/api/vouchers/sync", {
+            method: "PUT",
+            body: JSON.stringify({ serialNumber: voucherToSync })
+        });
+        const result = await response.json();
+        if (result.success) {
+            alert("Voucher updated successfully according to entries.");
+            setIsPassModalOpen(false);
+            setSyncPreview(null);
+            fetchVouchers();
+        } else {
+            setPassError(result.message);
+        }
+    } catch (error: any) {
+        setPassError("Incorrect password. Access denied.");
+    } finally {
+        setIsVerifying(false);
+    }
   };
 
   const handleClearVoucher = async () => {
@@ -87,6 +146,14 @@ export default function VoucherRecords() {
           setPassError("Incorrect password. Access denied.");
       } finally {
           setIsVerifying(false);
+      }
+  };
+
+  const handlePasswordSubmit = () => {
+      if (voucherToSync) {
+          handleSyncVoucher();
+      } else {
+          handleClearVoucher();
       }
   };
 
@@ -145,7 +212,7 @@ export default function VoucherRecords() {
             </div>
         </div>
 
-        <button onClick={() => window.location.reload()} className="bg-gray-900 text-white px-6 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all">Refresh Sync</button>
+        <button onClick={() => fetchVouchers()} className="bg-gray-900 text-white px-6 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all">Refresh Sync</button>
       </div>
 
       {/* LIST TABLE */}
@@ -191,11 +258,19 @@ export default function VoucherRecords() {
                                     </td>
                                     <td className="text-center px-4 flex items-center justify-center gap-2 py-3">
                                         <button 
-                                            onClick={() => setSelectedVoucher(rec)}
+                                            onClick={() => handleInspectVoucher(rec)}
                                             className="text-[9px] font-black uppercase text-blue-600 hover:text-blue-800 transition-colors border border-blue-100 px-3 py-1 rounded hover:bg-blue-100"
                                         >
                                             Inspect
                                         </button>
+                                        {userRole === 'Finance' && rec.needsSync && (
+                                            <button 
+                                                onClick={() => handleOpenSyncModal(rec)}
+                                                className="text-[9px] font-black uppercase text-orange-600 hover:text-orange-800 transition-colors border border-orange-100 px-3 py-1 rounded hover:bg-orange-100 animate-pulse"
+                                            >
+                                                Update Voucher
+                                            </button>
+                                        )}
                                         {!isCashVoucher && rec.status !== 'Cleared' && userRole === 'Finance' && (
                                             <button 
                                                 onClick={() => handleOpenClearModal(rec.id)}
@@ -239,16 +314,89 @@ export default function VoucherRecords() {
         />
       )}
 
-      {/* PASSWORD VERIFICATION MODAL FOR CLEARING */}
+      {/* SYNC PREVIEW MODAL */}
+      {syncPreview && !isPassModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-slideUp border border-gray-100">
+                  <div className="bg-orange-600 p-6 text-center">
+                      <div className="w-12 h-12 bg-white text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                      </div>
+                      <h3 className="text-white font-black uppercase tracking-widest text-sm leading-none">Sync Detection</h3>
+                      <p className="text-white/60 text-[9px] font-bold uppercase mt-2 tracking-tighter">Modifications detected in ledger entries</p>
+                  </div>
+                  
+                  <div className="p-8">
+                      <div className="space-y-6">
+                          <div className="flex justify-between items-center border-b border-gray-100 pb-4">
+                              <div className="text-center flex-1">
+                                  <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest block mb-1">Current Total</span>
+                                  <span className="text-sm font-black text-gray-400 line-through">PKR {syncPreview.totalAmount.toLocaleString()}</span>
+                              </div>
+                              <div className="px-4">
+                                  <svg className="w-5 h-5 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                              </div>
+                              <div className="text-center flex-1">
+                                  <span className="text-[8px] font-black text-orange-600 uppercase tracking-widest block mb-1">New Total</span>
+                                  <span className="text-lg font-black text-orange-600 animate-pulse">PKR {syncPreview.liveTotal.toLocaleString()}</span>
+                              </div>
+                          </div>
+
+                          <div className="space-y-3">
+                              <span className="text-[9px] font-black text-gray-900 uppercase tracking-widest block">Detailed Comparison</span>
+                              <div className="max-h-[200px] overflow-y-auto rounded-xl border border-gray-100 bg-gray-50 p-2 custom-scrollbar">
+                                  <div className="grid grid-cols-2 gap-2">
+                                      <div className="space-y-1">
+                                          <p className="text-[7px] font-black text-gray-400 uppercase">Old Items</p>
+                                          {syncPreview.items.map((it: any, i: number) => (
+                                              <div key={i} className="text-[8px] font-bold text-gray-500 border-b border-white pb-1 truncate">{it.detail} - Rs.{it.amount}</div>
+                                          ))}
+                                      </div>
+                                      <div className="space-y-1">
+                                          <p className="text-[7px] font-black text-orange-600 uppercase">New Live Items</p>
+                                          {syncPreview.liveItems.map((it: any, i: number) => (
+                                              <div key={i} className="text-[8px] font-black text-orange-600 border-b border-white pb-1 truncate">{it.detail} - Rs.{it.amount}</div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-2">
+                              <button 
+                                  onClick={() => setSyncPreview(null)}
+                                  className="py-3 rounded-xl text-[10px] font-black uppercase text-gray-400 hover:bg-gray-50 transition-all"
+                              >
+                                  Cancel
+                              </button>
+                              <button 
+                                  onClick={handleConfirmSyncPreview}
+                                  className="py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-orange-100 transition-all active:scale-95"
+                              >
+                                  Confirm Changes
+                              </button>
+                          </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* PASSWORD VERIFICATION MODAL FOR CLEARING & VOUCHER SYNC */}
+
       {isPassModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
               <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-slideUp border border-gray-100">
-                  <div className="bg-gray-900 p-6 text-center">
-                      <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg shadow-green-900/20 text-white">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                  <div className={voucherToSync ? "bg-orange-600 p-6 text-center" : "bg-gray-900 p-6 text-center"}>
+                      <div className={`w-12 h-12 ${voucherToSync ? 'bg-white text-orange-600' : 'bg-green-600 text-white'} rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg flex items-center justify-center`}>
+                        {voucherToSync ? (
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg>
+                        ) : (
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        )}
                       </div>
-                      <h3 className="text-white font-black uppercase tracking-widest text-sm leading-none">Voucher Clearing</h3>
-                      <p className="text-gray-500 text-[9px] font-bold uppercase mt-2 tracking-tighter">Enter password to return amount to balance</p>
+                      <h3 className="text-white font-black uppercase tracking-widest text-sm leading-none">{voucherToSync ? 'Sync Entries' : 'Voucher Clearing'}</h3>
+                      <p className="text-white/60 text-[9px] font-bold uppercase mt-2 tracking-tighter">{voucherToSync ? `Updating voucher data based on current ledger entries` : 'Enter password to return amount to balance'}</p>
                   </div>
                   
                   <div className="p-8">
@@ -260,8 +408,8 @@ export default function VoucherRecords() {
                                   value={password}
                                   onChange={(e) => setPassword(e.target.value)}
                                   placeholder="••••••••"
-                                  className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-green-600 transition-all"
-                                  onKeyDown={(e) => e.key === 'Enter' && handleClearVoucher()}
+                                  className={`w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none transition-all ${voucherToSync ? 'focus:border-orange-600' : 'focus:border-green-600'}`}
+                                  onKeyDown={(e) => e.key === 'Enter' && handlePasswordSubmit()}
                                   autoFocus
                               />
                           </div>
@@ -270,19 +418,19 @@ export default function VoucherRecords() {
 
                           <div className="grid grid-cols-2 gap-3 pt-2">
                               <button 
-                                  onClick={() => setIsPassModalOpen(false)}
+                                  onClick={() => { setIsPassModalOpen(false); setSyncPreview(null); }}
                                   className="py-3 rounded-xl text-[10px] font-black uppercase text-gray-400 hover:bg-gray-50 transition-all"
                               >
                                   Cancel
                               </button>
                               <button 
-                                  onClick={handleClearVoucher}
+                                  onClick={handlePasswordSubmit}
                                   disabled={isVerifying || !password}
-                                  className="py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-green-100 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:shadow-none"
+                                  className={`py-3 ${voucherToSync ? 'bg-orange-600 hover:bg-orange-700 shadow-orange-100' : 'bg-green-600 hover:bg-green-700 shadow-green-100'} text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:shadow-none`}
                               >
                                   {isVerifying ? (
                                       <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                                  ) : "Clear Voucher"}
+                                  ) : voucherToSync ? "Update Now" : "Clear Voucher"}
                               </button>
                           </div>
                       </div>

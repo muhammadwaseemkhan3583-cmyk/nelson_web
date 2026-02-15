@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { verifyAuth } from "@/lib/auth-middleware";
+import { adminDb } from "@/lib/firebase-admin";
 
 export async function POST(request: Request) {
   try {
@@ -11,6 +12,10 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { serial, date, total, items, expenseIds, type } = body;
+
+    // Get User Name from Firestore
+    const userDoc = await adminDb.collection("users").doc(auth.uid!).get();
+    const userName = userDoc.exists ? userDoc.data()?.name : "Finance Officer";
 
     console.log(">>> Saving Voucher:", { serial, date, type, expenseCount: expenseIds?.length });
 
@@ -29,7 +34,7 @@ export async function POST(request: Request) {
           items: items,
           type: type || "Petty Cash",
           status: "Pending",
-          preparedBy: "Finance Officer"
+          preparedBy: userName
         }
       });
 

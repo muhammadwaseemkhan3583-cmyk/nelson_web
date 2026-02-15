@@ -16,33 +16,42 @@ export async function GET(request: Request) {
       }
     });
 
-    const now = new Date();
-    
-    // Live Sync Logic: Only for vouchers created within the last 36 hours
     const liveVouchers = await Promise.all(vouchers.map(async (v) => {
-        const createdTime = new Date(v.createdAt).getTime();
-        const diffHours = (now.getTime() - createdTime) / (1000 * 60 * 60);
-
-        if (diffHours <= 36) {
-            // Fetch live expenses for this voucher
-            const expenses = await prisma.expense.findMany({
-                where: { voucherId: v.id }
-            });
-
-            if (expenses.length > 0) {
-                const liveItems = aggregateVoucherItems(expenses, v.type);
-                const liveTotal = liveItems.reduce((sum: number, item: any) => sum + item.amount, 0);
-                
-                return {
-                    ...v,
-                    items: liveItems,
-                    totalAmount: liveTotal,
-                    isLive: true
-                };
+        // 1. Ensure items is an array
+        let parsedItems = v.items;
+        if (typeof v.items === 'string') {
+            try {
+                parsedItems = JSON.parse(v.items);
+            } catch (e) {
+                parsedItems = [];
             }
         }
-        
-        return { ...v, isLive: false };
+        if (!Array.isArray(parsedItems)) parsedItems = [];
+
+        // 2. Only fetch live data if the database says a sync is needed
+        let liveItems = parsedItems;
+        let liveTotal = v.totalAmount;
+
+        if (v.needsSync) {
+            const expenses = await prisma.expense.findMany({
+                where: {
+                    OR: [
+                        { voucherId: v.serialNumber },
+                        { voucherId: v.id }
+                    ]
+                }
+            });
+            liveItems = aggregateVoucherItems(expenses, v.type);
+            liveTotal = liveItems.reduce((sum: number, item: any) => sum + item.amount, 0);
+        }
+
+        return {
+            ...v,
+            items: parsedItems,
+            liveItems,
+            liveTotal,
+            needsSync: v.needsSync
+        };
     }));
 
     return NextResponse.json({ 

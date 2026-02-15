@@ -29,6 +29,19 @@ export async function PUT(request: Request) {
       data: formattedUpdates,
     });
 
+    // If this expense is part of a voucher, mark the voucher for sync
+    if (updatedExpense.voucherId) {
+        await prisma.voucherRecord.updateMany({
+            where: {
+                OR: [
+                    { serialNumber: updatedExpense.voucherId },
+                    { id: updatedExpense.voucherId }
+                ]
+            },
+            data: { needsSync: true }
+        });
+    }
+
     return NextResponse.json({ 
       success: true, 
       message: "Record updated successfully.",
@@ -57,10 +70,27 @@ export async function DELETE(request: Request) {
       if (!id) {
         return NextResponse.json({ success: false, message: "Missing ID." }, { status: 400 });
       }
+
+      // Find the expense first to check if it has a voucherId
+      const expense = await prisma.expense.findUnique({
+          where: { id }
+      });
   
       await prisma.expense.delete({
         where: { id },
       });
+
+      if (expense?.voucherId) {
+          await prisma.voucherRecord.updateMany({
+              where: {
+                  OR: [
+                      { serialNumber: expense.voucherId },
+                      { id: expense.voucherId }
+                  ]
+              },
+              data: { needsSync: true }
+          });
+      }
   
       return NextResponse.json({ 
         success: true, 

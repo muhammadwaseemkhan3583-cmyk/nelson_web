@@ -47,5 +47,6 @@ model VoucherRecord {
   items        Json     
   preparedBy   String?
   status       String   @default("Pending") // "Pending" or "Cleared"
+  needsSync    Boolean  @default(false)
   createdAt    DateTime @default(now())
 }

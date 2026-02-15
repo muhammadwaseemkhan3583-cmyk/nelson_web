@@ -66,16 +66,6 @@ export default function ViewSheets() {
     const row = expenses.find(e => e.id === id);
     if (!row) return;
 
-    // Check 36 hour rule
-    const createdTime = new Date(row.createdAt).getTime();
-    const now = new Date().getTime();
-    const diffHours = (now - createdTime) / (1000 * 60 * 60);
-
-    if (diffHours > 36) {
-        alert("Old entries cannot be edited (Exceeded 36 Hours).");
-        return;
-    }
-
     setExpenses(expenses.map(e => e.id === id ? { ...e, [field]: value } : e));
     setModifiedRowIds(prev => new Set(prev).add(id));
   };
@@ -201,9 +191,12 @@ export default function ViewSheets() {
       const matchDept = selectedDept === "All" || (e.department || "").trim().toUpperCase() === selectedDept;
       const matchCat = selectedCat === "All" || (e.category || "").trim().toUpperCase() === selectedCat;
 
+      // FIX: Keep modified rows visible even if they no longer match the filter
+      if (modifiedRowIds.has(e.id)) return true;
+
       return matchTime && matchType && matchDept && matchCat;
     });
-  }, [expenses, selectedYear, selectedTimeframe, fromMonth, toMonth, selectedType, selectedDept, selectedCat, searchName]);
+  }, [expenses, selectedYear, selectedTimeframe, fromMonth, toMonth, selectedType, selectedDept, selectedCat, searchName, modifiedRowIds]);
 
   const totalAmount = filteredData.reduce((s: number, r: any) => s + r.amount, 0);
 
@@ -330,8 +323,7 @@ export default function ViewSheets() {
                     <tr><td colSpan={10} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Synchronizing Live Database...</td></tr>
                 ) : filteredData.length > 0 ? (
                   filteredData.map((row: any, index: number) => {
-                    const isEditable = (new Date().getTime() - new Date(row.createdAt).getTime()) / (1000 * 60 * 60) <= 36;
-                    const canEditRow = isEditMode && isEditable;
+                    const canEditRow = isEditMode;
 
                     return (
                         <tr key={row.id} className={`hover:bg-blue-50 transition-colors group border-b border-gray-100 uppercase ${modifiedRowIds.has(row.id) ? 'bg-orange-50/50' : ''}`}>
@@ -342,7 +334,6 @@ export default function ViewSheets() {
                             ) : (
                                 <div className="flex flex-col py-2">
                                     <span className="font-bold text-[10px]">{new Date(row.date).toLocaleDateString('en-GB')}</span>
-                                    {!isEditable && isEditMode && <span className="text-[7px] text-red-500 font-black">LOCKED</span>}
                                 </div>
                             )}
                         </td>

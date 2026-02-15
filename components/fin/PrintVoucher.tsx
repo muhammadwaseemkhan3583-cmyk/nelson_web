@@ -3,6 +3,9 @@
 import { useState, useEffect } from "react";
 import VoucherPrintModal from "./VoucherPrintModal";
 import { authenticatedFetch } from "@/lib/utils";
+import { auth, db } from "@/lib/firebase";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function GenerateVoucher() {
   const [selectedDate, setSelectedDate] = useState("");
@@ -18,6 +21,20 @@ export default function GenerateVoucher() {
   const [total, setTotal] = useState(0);
   const [expenseIds, setExpenseIds] = useState<string[]>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [userName, setUserName] = useState("");
+
+  // Fetch User Name
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          setUserName(userDoc.data().name);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, []);
 
   // Fetch dates that have pending (unvouchered) expenses
   useEffect(() => {
@@ -194,7 +211,14 @@ export default function GenerateVoucher() {
       {/* PRINT MODAL */}
       {showPrintModal && (
           <VoucherPrintModal 
-            voucher={{ serialNumber: serial, date: selectedDate, type: voucherType, totalAmount: total, items: voucherData }}
+            voucher={{ 
+              serialNumber: serial, 
+              date: selectedDate, 
+              type: voucherType, 
+              totalAmount: total, 
+              items: voucherData,
+              preparedBy: userName
+            }}
             onClose={() => setShowPrintModal(false)}
           />
       )}

@@ -20,9 +20,16 @@ export default function FinanceDashboardPage() {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // First set name from session if available
+        if (user.displayName) {
+            setUserData(prev => ({ ...prev!, name: user.displayName! }));
+        }
+        
+        // Then fetch detailed profile from Firestore
         const userDoc = await getDoc(doc(db, "users", user.uid));
         if (userDoc.exists()) {
-          setUserData(userDoc.data() as any);
+          const data = userDoc.data() as any;
+          setUserData(data);
         }
       }
     });

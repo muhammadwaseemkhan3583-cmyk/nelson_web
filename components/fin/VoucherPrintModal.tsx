@@ -10,6 +10,7 @@ interface VoucherPrintModalProps {
     totalAmount: number;
     items: any[];
     id?: string;
+    preparedBy?: string;
   };
   onClose: () => void;
 }
@@ -19,7 +20,8 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
     window.print();
   };
 
-  const itemCount = voucher.items.length;
+  const items = Array.isArray(voucher.items) ? voucher.items : [];
+  const itemCount = items.length;
   const minRows = 8;
   const emptyRowsNeeded = Math.max(0, minRows - itemCount);
 
@@ -83,12 +85,12 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
                   </tr>
                 </thead>
                 <tbody className="font-bold">
-                  {voucher.items.map((item: any) => (
-                    <tr key={item.srNo} className="h-5">
+                  {(Array.isArray(voucher.items) ? voucher.items : []).map((item: any, index: number) => (
+                    <tr key={item.srNo || `item-${index}`} className="h-5">
                       <td className="border-2 border-gray-900 px-2 py-0.5 text-center text-gray-900 font-normal">{item.srNo}</td>
                       <td className="border-2 border-gray-900 px-2 py-0.5 uppercase tracking-tight">{item.detail}</td>
-                      <td className="border-2 border-gray-900 px-2 py-0.5 text-right font-black">PKR {item.amount.toLocaleString()}.00</td>
-                      <td className="border-2 border-gray-900 px-2 py-0.5"></td>
+                      <td className="border-2 border-gray-900 px-2 py-0.5 text-right font-black">PKR {(item.amount || 0).toLocaleString()}.00</td>
+                      <td className="border-2 border-gray-900 px-2 py-0.5">{item.remarks}</td>
                     </tr>
                   ))}
                   {/* Minimum 8 rows logic */}
@@ -120,10 +122,23 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
             </div>
 
             {/* Footer Signatures */}
-            <div className="grid grid-cols-3 gap-10 mt-2 text-gray-900">
-              <div className="text-center"><div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase">Prepared</div></div>
-              <div className="text-center"><div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase">Checked</div></div>
-              <div className="text-center"><div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase text-gray-900">Authorized</div></div>
+            <div className="grid grid-cols-3 gap-10 mt-2 text-gray-900 items-end">
+              <div className="text-center">
+                <div className="text-[10px] font-black uppercase mb-1 h-4 flex items-end justify-center">
+                    {voucher.preparedBy && voucher.preparedBy !== "Finance Officer" ? voucher.preparedBy : ""}
+                </div>
+                <div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase">Prepared By</div>
+              </div>
+              
+              <div className="text-center">
+                <div className="h-4 mb-1"></div>
+                <div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase">Checked By</div>
+              </div>
+
+              <div className="text-center">
+                <div className="h-4 mb-1"></div>
+                <div className="border-t border-gray-900 pt-1 text-[8px] font-black uppercase">Authorized By</div>
+              </div>
             </div>
 
             <div className="mt-4 flex justify-between text-[6px] font-bold uppercase tracking-[0.2em] text-gray-900">
