@@ -10,35 +10,34 @@ export async function PUT(request: Request) {
     }
 
     if (auth.role !== "Finance") {
-        return NextResponse.json({ success: false, message: "Unauthorized: Only Finance Officers can clear vouchers." }, { status: 403 });
+        return NextResponse.json({ success: false, message: "Unauthorized: Only Finance Officers can forward vouchers." }, { status: 403 });
     }
 
-    const { id } = await request.json();
+    const { id, nextStatus } = await request.json();
 
-    if (!id) {
-      return NextResponse.json({ success: false, message: "Missing voucher ID." }, { status: 400 });
+    if (!id || !nextStatus) {
+      return NextResponse.json({ success: false, message: "Missing required data." }, { status: 400 });
     }
 
     const updatedVoucher = await prisma.voucherRecord.update({
       where: { id },
       data: { 
-        status: "Cleared",
-        statusUpdatedAt: new Date(),
-        needsSync: false
+        status: nextStatus,
+        statusUpdatedAt: new Date()
       },
     });
 
     return NextResponse.json({ 
       success: true, 
-      message: "Voucher cleared successfully. Amount added back to balance.",
+      message: `Voucher forwarded to ${nextStatus}.`,
       voucher: updatedVoucher
     }, { status: 200 });
 
   } catch (error: any) {
-    console.error("Clear Voucher Error:", error.message);
+    console.error("Forward Voucher Error:", error.message);
     return NextResponse.json({ 
       success: false, 
-      message: "Failed to clear voucher." 
+      message: "Failed to forward voucher." 
     }, { status: 500 });
   }
 }

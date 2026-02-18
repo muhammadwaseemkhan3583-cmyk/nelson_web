@@ -58,7 +58,7 @@ export default function ExpenseReports({ onTabChange }: { onTabChange?: (tab: st
   // Balance Calculation
   const MAIN_AMOUNT = 50000;
   const pendingVouchersTotal = vouchers
-    .filter(v => (v.status || "Pending") === "Pending" && (v.type || "").toLowerCase() === "petty cash")
+    .filter(v => (v.status || "Pending") !== "Cleared" && (v.type || "").toLowerCase() === "petty cash")
     .reduce((sum, v) => sum + Number(v.totalAmount || 0), 0);
   const currentBalance = MAIN_AMOUNT - pendingVouchersTotal;
 

@@ -46,7 +46,8 @@ model VoucherRecord {
   totalAmount  Float
   items        Json     
   preparedBy   String?
-  status       String   @default("Pending") // "Pending" or "Cleared"
+  status       String   @default("Pending") // e.g., "Pending", "Hold BY Atif Shamsi", "Cleared"
+  statusUpdatedAt DateTime @default(now())
   needsSync    Boolean  @default(false)
   createdAt    DateTime @default(now())
 }

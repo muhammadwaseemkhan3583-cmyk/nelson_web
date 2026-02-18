@@ -34,7 +34,8 @@ export async function POST(request: Request) {
           items: items,
           type: type || "Petty Cash",
           status: "Pending",
-          preparedBy: userName
+          preparedBy: userName,
+          statusUpdatedAt: new Date()
         }
       });
 

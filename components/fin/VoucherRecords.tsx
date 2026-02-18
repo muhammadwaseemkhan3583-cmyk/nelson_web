@@ -26,6 +26,9 @@ export default function VoucherRecords() {
   const [voucherToSync, setVoucherToSync] = useState<string | null>(null);
   const [syncPreview, setSyncPreview] = useState<any | null>(null);
 
+  // Forwarding State
+  const [forwardModal, setForwardModal] = useState<{ id: string, nextStatus: string, message: string } | null>(null);
+
   const fetchVouchers = async () => {
     setIsLoading(true);
     try {
@@ -73,6 +76,47 @@ export default function VoucherRecords() {
       setIsPassModalOpen(true);
       setPassError("");
       setPassword("");
+  };
+
+  const handleOpenForwardModal = (rec: any) => {
+      let nextStatus = "";
+      let message = "";
+      const currentStatus = rec.status || "Pending";
+
+      if (currentStatus === "Pending" || currentStatus === "Recorded") {
+          nextStatus = "Hold BY Atif Shamsi";
+          message = "Do you want to Forward voucher TO Atif Shamsi?";
+      } else if (currentStatus === "Hold BY Atif Shamsi") {
+          nextStatus = "Hold By Mehmood Seed";
+          message = "Do you want to Forward voucher TO Mehmood Sb?";
+      } else if (currentStatus === "Hold By Mehmood Seed") {
+          nextStatus = "Pending with Finance";
+          message = "Do you want to forward with Finance Officer?";
+      }
+
+      if (nextStatus) {
+          setForwardModal({ id: rec.id, nextStatus, message });
+      }
+  };
+
+  const handleForwardVoucher = async () => {
+      if (!forwardModal) return;
+
+      try {
+          const response = await authenticatedFetch("/api/vouchers/forward", {
+              method: "PUT",
+              body: JSON.stringify({ id: forwardModal.id, nextStatus: forwardModal.nextStatus })
+          });
+          const result = await response.json();
+          if (result.success) {
+              setForwardModal(null);
+              fetchVouchers();
+          } else {
+              alert(result.message);
+          }
+      } catch (error) {
+          console.error("Forward Error:", error);
+      }
   };
 
   const handleOpenSyncModal = (rec: any) => {
@@ -158,10 +202,15 @@ export default function VoucherRecords() {
   };
 
   const filteredRecords = useMemo(() => {
-    return vouchers.filter((rec: any) => {
+    const filtered = vouchers.filter((rec: any) => {
       const matchSerial = rec.serialNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      if (!matchSerial) return false;
+
+      // If it's NOT Cleared, always show it (bypass timeframe filter)
+      const isCleared = rec.status === "Cleared";
+      if (!isCleared) return true;
       
-      // Timeframe Logic
+      // If it IS Cleared, apply Timeframe Logic
       const rowDate = new Date(rec.date);
       const now = new Date();
       const diffMs = now.getTime() - rowDate.getTime();
@@ -173,7 +222,19 @@ export default function VoucherRecords() {
       if (timeframe === "6 Months" && diffDays > 180) return false;
       if (timeframe === "1 Year" && diffDays > 365) return false;
 
-      return matchSerial;
+      return true;
+    });
+
+    // Sort: Non-Cleared (Pending, Hold BY, etc.) first, then by Date Desc
+    return [...filtered].sort((a, b) => {
+        const isACleared = a.status === "Cleared";
+        const isBCleared = b.status === "Cleared";
+
+        if (isACleared && !isBCleared) return 1;
+        if (!isACleared && isBCleared) return -1;
+
+        // If both same status group, sort by date desc
+        return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
   }, [searchTerm, timeframe, vouchers]);
 
@@ -216,21 +277,21 @@ export default function VoucherRecords() {
       </div>
 
       {/* LIST TABLE */}
-      <div className="flex-grow bg-white border-x border-b border-gray-200 rounded-b-xl overflow-hidden flex flex-col h-[70vh]">
-        <div className="flex-grow overflow-auto bg-gray-50 p-px custom-scrollbar">
-            <table className="w-full border-collapse">
-                <thead className="sticky top-0 z-10">
-                    <tr className="bg-gray-200 text-gray-600 shadow-sm">
-                        <th className="w-12 border border-gray-300 py-3 text-[9px] font-black uppercase text-center">#</th>
-                        <th className="w-48 border border-gray-300 py-3 text-[9px] font-black uppercase text-left px-4">Voucher Serial Number</th>
-                        <th className="w-32 border border-gray-300 py-3 text-[9px] font-black uppercase text-center">Issue Date</th>
-                        <th className="w-40 border border-gray-300 py-3 text-[9px] font-black uppercase text-right px-4">Net Amount</th>
-                        <th className="w-40 border border-gray-300 py-3 text-[9px] font-black uppercase text-left px-4">Officer</th>
-                        <th className="w-24 border border-gray-300 py-3 text-[9px] font-black uppercase text-center">Status</th>
-                        <th className="border border-gray-300 py-3 text-[9px] font-black uppercase text-center text-gray-400">Actions</th>
+      <div className="flex-grow bg-white border border-gray-200 rounded-xl overflow-hidden flex flex-col h-[70vh] shadow-sm">
+        <div className="flex-grow overflow-auto bg-white custom-scrollbar">
+            <table className="w-full border-separate border-spacing-0">
+                <thead className="sticky top-0 z-20">
+                    <tr className="bg-gray-50 text-gray-500 border-b border-gray-200">
+                        <th className="w-12 py-4 text-[10px] font-black uppercase text-center border-b border-gray-200">#</th>
+                        <th className="w-48 py-4 text-[10px] font-black uppercase text-left px-4 border-b border-gray-200">Voucher Serial Number</th>
+                        <th className="w-32 py-4 text-[10px] font-black uppercase text-center border-b border-gray-200">Issue Date</th>
+                        <th className="w-40 py-4 text-[10px] font-black uppercase text-right px-4 border-b border-gray-200">Net Amount</th>
+                        <th className="w-40 py-4 text-[10px] font-black uppercase text-left px-4 border-b border-gray-200">Officer</th>
+                        <th className="w-32 py-4 text-[10px] font-black uppercase text-center border-b border-gray-200">Status Tracking</th>
+                        <th className="py-4 text-[10px] font-black uppercase text-center border-b border-gray-200">Actions</th>
                     </tr>
                 </thead>
-                <tbody className="bg-white">
+                <tbody className="divide-y divide-gray-100">
                     {isLoading ? (
                         <tr><td colSpan={7} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Fetching records...</td></tr>
                     ) : filteredRecords.length > 0 ? (
@@ -238,9 +299,9 @@ export default function VoucherRecords() {
                             const isCashVoucher = rec.type === "Cash Voucher";
                             
                             return (
-                                <tr key={rec.id} className="hover:bg-blue-50 transition-colors group">
-                                    <td className="border-r border-gray-200 text-center text-[10px] font-bold text-gray-400 bg-gray-50/50">{index + 1}</td>
-                                    <td className="border-r border-gray-200 px-4 py-3 text-xs font-black text-gray-900 uppercase tracking-tight">
+                                <tr key={rec.id} className="hover:bg-gray-50/50 transition-colors group">
+                                    <td className="text-center text-[10px] font-bold text-gray-400 py-4">{index + 1}</td>
+                                    <td className="px-4 py-4 text-xs font-black text-gray-900 uppercase tracking-tight">
                                         <div className="flex items-center gap-2">
                                             <span>{rec.serialNumber}</span>
                                             <span className={`text-[7px] font-black px-1 py-0.5 rounded border ${isCashVoucher ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
@@ -248,35 +309,84 @@ export default function VoucherRecords() {
                                             </span>
                                         </div>
                                     </td>
-                                    <td className="border-r border-gray-200 text-center text-xs font-bold text-gray-500 font-mono">{new Date(rec.date).toLocaleDateString('en-GB')}</td>
-                                    <td className="border-r border-gray-200 px-4 py-3 text-xs font-black text-orange-600 text-right tabular-nums">PKR {rec.totalAmount.toLocaleString()}.00</td>
-                                    <td className="border-r border-gray-200 px-4 py-3 text-xs font-medium text-gray-600 uppercase">{rec.preparedBy}</td>
-                                    <td className="border-r border-gray-200 text-center px-2">
-                                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full ${isCashVoucher ? 'bg-blue-100 text-blue-700' : rec.status === 'Cleared' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>
-                                            {isCashVoucher ? 'Recorded' : (rec.status || 'Pending')}
-                                        </span>
+                                    <td className="text-center text-xs font-bold text-gray-500 font-mono py-4">{new Date(rec.date).toLocaleDateString('en-GB')}</td>
+                                    <td className="px-4 py-4 text-xs font-black text-orange-600 text-right tabular-nums">PKR {rec.totalAmount.toLocaleString()}.00</td>
+                                    <td className="px-4 py-4 text-xs font-medium text-gray-600 uppercase">{rec.preparedBy}</td>
+                                    <td className="text-center px-4 py-4">
+                                        {(() => {
+                                            let textColor = "text-gray-600";
+                                            let dotColor = "bg-gray-400";
+                                            const currentStatus = rec.status || "Pending";
+                                            const isLive = currentStatus !== "Cleared";
+
+                                            if (currentStatus === "Pending" || currentStatus === "Recorded") {
+                                                textColor = isCashVoucher ? "text-blue-700" : "text-orange-700";
+                                                dotColor = isCashVoucher ? "bg-blue-500" : "bg-orange-500";
+                                            } else if (currentStatus === "Hold BY Atif Shamsi") {
+                                                textColor = "text-amber-700";
+                                                dotColor = "bg-amber-500";
+                                            } else if (currentStatus === "Hold By Mehmood Seed") {
+                                                textColor = "text-purple-700";
+                                                dotColor = "bg-purple-500";
+                                            } else if (currentStatus === "Pending with Finance") {
+                                                textColor = "text-indigo-700";
+                                                dotColor = "bg-indigo-500";
+                                            } else if (currentStatus === "Cleared") {
+                                                textColor = "text-emerald-700";
+                                                dotColor = "bg-emerald-500";
+                                            }
+
+                                            return (
+                                                <div className={`flex flex-col items-center gap-1 ${textColor}`}>
+                                                    <div className="flex items-center gap-2 justify-center">
+                                                        <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${isLive ? 'animate-pulse' : ''}`}></span>
+                                                        <span className="text-[10px] font-black uppercase tracking-wider whitespace-nowrap">
+                                                            {currentStatus}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1 text-[8px] font-black opacity-40 uppercase tracking-widest leading-none">
+                                                        <span>{new Date(rec.statusUpdatedAt || rec.createdAt).toLocaleString('en-GB', { 
+                                                            day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: true 
+                                                        }).replace(',', '')}</span>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
                                     </td>
-                                    <td className="text-center px-4 flex items-center justify-center gap-2 py-3">
+                                    <td className="text-center px-4 flex items-center justify-center gap-2 py-4">
                                         <button 
                                             onClick={() => handleInspectVoucher(rec)}
-                                            className="text-[9px] font-black uppercase text-blue-600 hover:text-blue-800 transition-colors border border-blue-100 px-3 py-1 rounded hover:bg-blue-100"
+                                            className="text-[9px] font-black uppercase text-blue-600 hover:text-blue-800 transition-colors border border-blue-100 px-3 py-1.5 rounded hover:bg-blue-50"
                                         >
                                             Inspect
                                         </button>
-                                        {userRole === 'Finance' && rec.needsSync && (
+                                        
+                                        {userRole === 'Finance' && rec.status !== 'Cleared' && (
+                                            <>
+                                                {((rec.status || "Pending") === "Pending" || rec.status === "Recorded" || rec.status === "Hold BY Atif Shamsi" || rec.status === "Hold By Mehmood Seed") ? (
+                                                    <button 
+                                                        onClick={() => handleOpenForwardModal(rec)}
+                                                        className="text-[9px] font-black uppercase text-orange-600 hover:text-orange-800 transition-colors border border-orange-100 px-3 py-1.5 rounded hover:bg-orange-50"
+                                                    >
+                                                        Forward
+                                                    </button>
+                                                ) : rec.status === "Pending with Finance" ? (
+                                                    <button 
+                                                        onClick={() => handleOpenClearModal(rec.id)}
+                                                        className="text-[9px] font-black uppercase text-green-600 hover:text-green-800 transition-colors border border-green-100 px-3 py-1.5 rounded hover:bg-green-50"
+                                                    >
+                                                        Clear
+                                                    </button>
+                                                ) : null}
+                                            </>
+                                        )}
+
+                                        {userRole === 'Finance' && rec.status !== 'Cleared' && rec.needsSync && (
                                             <button 
                                                 onClick={() => handleOpenSyncModal(rec)}
-                                                className="text-[9px] font-black uppercase text-orange-600 hover:text-orange-800 transition-colors border border-orange-100 px-3 py-1 rounded hover:bg-orange-100 animate-pulse"
+                                                className="text-[9px] font-black uppercase text-orange-600 hover:text-orange-800 transition-colors border border-orange-100 px-3 py-1.5 rounded hover:bg-orange-50 animate-pulse"
                                             >
-                                                Update Voucher
-                                            </button>
-                                        )}
-                                        {!isCashVoucher && rec.status !== 'Cleared' && userRole === 'Finance' && (
-                                            <button 
-                                                onClick={() => handleOpenClearModal(rec.id)}
-                                                className="text-[9px] font-black uppercase text-green-600 hover:text-green-800 transition-colors border border-green-100 px-3 py-1 rounded hover:bg-green-100"
-                                            >
-                                                Clear
+                                                Update
                                             </button>
                                         )}
                                     </td>
@@ -433,6 +543,39 @@ export default function VoucherRecords() {
                                   ) : voucherToSync ? "Update Now" : "Clear Voucher"}
                               </button>
                           </div>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* FORWARDING MODAL */}
+      {forwardModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-slideUp border border-gray-100">
+                  <div className="bg-orange-600 p-6 text-center">
+                      <div className="w-12 h-12 bg-white text-orange-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path></svg>
+                      </div>
+                      <h3 className="text-white font-black uppercase tracking-widest text-sm leading-none">Forward Voucher</h3>
+                  </div>
+                  
+                  <div className="p-8">
+                      <p className="text-center font-bold text-gray-700 text-sm mb-8">{forwardModal.message}</p>
+                      
+                      <div className="grid grid-cols-2 gap-3">
+                          <button 
+                              onClick={() => setForwardModal(null)}
+                              className="py-3 rounded-xl text-[10px] font-black uppercase text-gray-400 hover:bg-gray-50 transition-all"
+                          >
+                              No
+                          </button>
+                          <button 
+                              onClick={handleForwardVoucher}
+                              className="py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-orange-100 transition-all active:scale-95"
+                          >
+                              Yes
+                          </button>
                       </div>
                   </div>
               </div>
