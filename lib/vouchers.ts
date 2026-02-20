@@ -7,15 +7,11 @@ export function aggregateVoucherItems(expenses: any[], type: string) {
             if (!acc[catKey]) {
                 acc[catKey] = { 
                     detail: rawCat.charAt(0).toUpperCase() + rawCat.slice(1).toLowerCase(), 
-                    amount: 0, 
-                    remarks: [] 
+                    amount: 0
                 };
             }
             
             acc[catKey].amount += curr.amount;
-            if (curr.remarks && !acc[catKey].remarks.includes(curr.remarks)) {
-                acc[catKey].remarks.push(curr.remarks);
-            }
             return acc;
         }, {});
         
@@ -23,14 +19,14 @@ export function aggregateVoucherItems(expenses: any[], type: string) {
             srNo: i + 1, 
             detail: item.detail, 
             amount: item.amount, 
-            remarks: item.remarks.join(", ") 
+            remarks: "" // Always empty as requested
         }));
     } else {
         return expenses.map((e: any, i: number) => ({
             srNo: i + 1,
             detail: `${e.description} (${e.vendorName})${e.department ? ` - ${e.department}` : ''}`,
             amount: e.amount,
-            remarks: `${e.concernPerson} - ${e.billOfMonth}`
+            remarks: "" // Always empty as requested
         }));
     }
 }

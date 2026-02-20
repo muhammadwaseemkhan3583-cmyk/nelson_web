@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, code, email, password, access } = body;
+    const { name, code, email, password, access, canReturnable, canNonReturnable, canOutdoorWork } = body;
 
     if (!email || !password || !access) {
       return NextResponse.json({ success: false, message: "Missing required fields." }, { status: 400 });
@@ -24,21 +24,29 @@ export async function POST(request: Request) {
       displayName: name,
     });
 
-    // 2. Set Custom Claim
-    await adminAuth.setCustomUserClaims(userRecord.uid, { role: access });
+    // 2. Set Custom Claim (Including granular permissions)
+    await adminAuth.setCustomUserClaims(userRecord.uid, { 
+        role: access,
+        canReturnable: !!canReturnable,
+        canNonReturnable: !!canNonReturnable,
+        canOutdoorWork: !!canOutdoorWork
+    });
 
     // 3. SECURE HASHING: Hash the password for our Firestore record
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // 4. Save to Firestore with ONLY the Hashed Password
+    // 4. Save to Firestore with Permissions
     await adminDb.collection("users").doc(userRecord.uid).set({
       uid: userRecord.uid,
       name,
       code,
       email,
       role: access,
-      password: hashedPassword, // Storing hashed version for database record
+      canReturnable: !!canReturnable,
+      canNonReturnable: !!canNonReturnable,
+      canOutdoorWork: !!canOutdoorWork,
+      password: hashedPassword,
       status: "Active",
       createdAt: new Date().toISOString(),
     });

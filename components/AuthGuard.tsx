@@ -49,26 +49,21 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (!user) {
+        // Clear cookie on logout
+        document.cookie = "token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
         router.push("/login");
         return;
       }
 
-      // Check Role for specialized dashboards
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      const userData = userDoc.data();
-      const role = userData?.role;
-
-      if (pathname.includes("admin_dashboard") && role !== "Admin") {
-        router.push("/dashboard/fin_dashboard");
-      } else if (pathname.includes("fin_dashboard") && role !== "Finance") {
-        router.push("/dashboard/admin_dashboard");
-      }
+      // Sync token cookie if missing or changed
+      const token = await user.getIdToken();
+      document.cookie = `token=${token}; path=/; max-age=3600; SameSite=Lax`;
 
       setLoading(false);
     });
 
     return () => unsubscribe();
-  }, [router, pathname]);
+  }, [router]);
 
   if (loading) {
     return (

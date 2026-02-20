@@ -17,8 +17,6 @@ export async function POST(request: Request) {
     const userDoc = await adminDb.collection("users").doc(auth.uid!).get();
     const userName = userDoc.exists ? userDoc.data()?.name : "Finance Officer";
 
-    console.log(">>> Saving Voucher:", { serial, date, type, expenseCount: expenseIds?.length });
-
     if (!serial || !date || !total || !expenseIds || !Array.isArray(expenseIds)) {
       return NextResponse.json({ success: false, message: "Invalid or missing voucher data." }, { status: 400 });
     }

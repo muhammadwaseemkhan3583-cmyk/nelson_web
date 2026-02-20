@@ -6,15 +6,73 @@ datasource db {
   provider = "postgresql"
 }
 
-model User {
-  id        String   @id @default(uuid())
-  uid       String   @unique
-  name      String
-  code      String   @unique
-  email     String   @unique
-  role      String
-  status    String   @default("Active")
-  createdAt DateTime @default(now())
+model ReturnablePass {
+  id                String    @id @default(uuid())
+  date              DateTime  @default(now())
+  passNumber        String    @unique
+  items             Json      // JSON array of { item: String, qty: Int }
+  purpose           String
+  toPlace           String
+  authorizedBy      String
+  department        String?
+  carrierName       String?
+  vehicleNumber     String?
+  expectedReturnDate DateTime // Corrected field name
+  officerRemarks    String?
+  securityClearByReturnDate DateTime? // Corrected field name
+  securityClearBy   String?
+  status            String    @default("Issued") // Issued, Verified, Returned, Cleared
+  securityRemarks   String?
+  clearanceDate     DateTime?
+  
+  issuerId          String
+  issuerName        String
+  createdAt         DateTime @default(now())
+}
+
+model NonReturnablePass {
+  id               String   @id @default(uuid())
+  date             DateTime @default(now())
+  passNumber       String   @unique
+  items            Json     // JSON array of { item: String, qty: Int }
+  purpose          String
+  toPlace          String
+  authorizedBy     String
+  department       String?
+  carrierName      String?
+  vehicleNumber    String?
+  officerRemarks   String?
+  securityClearBy  String?
+  status           String   @default("Issued") // Issued, Verified, Cleared
+  securityRemarks  String?
+  clearanceDate    DateTime?
+  
+  issuerId         String
+  issuerName       String
+  createdAt        DateTime @default(now())
+}
+
+model OutdoorPass {
+  id               String   @id @default(uuid())
+  date             DateTime @default(now())
+  passNumber       String   @unique
+  employeeName     String
+  employeeId       String
+  employeeDesignation String
+  department       String?
+  whereToGo        String
+  purpose          String
+  authorizedBy     String
+  securityClearedBy String?
+  outTime          String
+  inTime           String?
+  status           String   @default("Issued") // Issued, Verified, Cleared
+  securityRemarks  String?
+  clearanceDate    DateTime?
+  
+  issuerId         String
+  issuerName       String
+  createdAt        DateTime @default(now())
 }
 
 model Expense {
@@ -46,8 +104,41 @@ model VoucherRecord {
   totalAmount  Float
   items        Json     
   preparedBy   String?
-  status       String   @default("Pending") // e.g., "Pending", "Hold BY Atif Shamsi", "Cleared"
+  status       String   @default("Pending")
   statusUpdatedAt DateTime @default(now())
   needsSync    Boolean  @default(false)
   createdAt    DateTime @default(now())
 }
+
+model SecurityLog {
+  id                String   @id @default(uuid())
+  createdAt         DateTime @default(now())
+  action            String   // e.g., "Verified", "Returned", "Cleared"
+  passId            String
+  passType          String
+  passNumber        String
+  securityOfficerId String
+  securityOfficerName String
+  remarks           String?
+}
+
+model VisitorEntry {
+  id               String   @id @default(uuid())
+  date             DateTime @default(now())
+  visitorName      String
+  visitorIdType    String?  // CNIC, License, etc.
+  visitorIdNumber  String?
+  contactNumber    String?
+  fromWhere        String   // Source
+  toMeet           String   // Person to meet
+  purpose          String
+  itemsCarried     String?  // What they brought
+  inTime           DateTime @default(now())
+  outTime          DateTime?
+  status           String   @default("In") // In, Out
+  securityOfficer  String?
+  remarks          String?
+  
+  createdAt        DateTime @default(now())
+}
+

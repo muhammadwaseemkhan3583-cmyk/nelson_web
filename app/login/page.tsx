@@ -22,6 +22,11 @@ export default function LoginPage() {
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
+      
+      // Get ID Token and set it in a cookie for Middleware
+      const token = await user.getIdToken();
+      document.cookie = `token=${token}; path=/; max-age=3600; SameSite=Lax`;
+
       const userDoc = await getDoc(doc(db, "users", user.uid));
       
       if (userDoc.exists()) {
@@ -29,6 +34,7 @@ export default function LoginPage() {
         const role = userData.role;
         if (role === "Admin") router.push("/dashboard/admin_dashboard");
         else if (role === "Finance") router.push("/dashboard/fin_dashboard");
+        else if (role === "Security") router.push("/dashboard/security_dashboard");
         else router.push("/dashboard");
       } else {
         setError("Unauthorized: Employee profile not found.");

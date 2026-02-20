@@ -5,6 +5,10 @@ export interface AuthStatus {
   authenticated: boolean;
   uid?: string;
   role?: string;
+  name?: string;
+  canReturnable?: boolean;
+  canNonReturnable?: boolean;
+  canOutdoorWork?: boolean;
   error?: string;
 }
 
@@ -21,7 +25,11 @@ export async function verifyAuth(request: Request): Promise<AuthStatus> {
     return { 
       authenticated: true, 
       uid: decodedToken.uid, 
-      role: decodedToken.role as string 
+      role: decodedToken.role as string,
+      name: decodedToken.name as string,
+      canReturnable: !!decodedToken.canReturnable,
+      canNonReturnable: !!decodedToken.canNonReturnable,
+      canOutdoorWork: !!decodedToken.canOutdoorWork
     };
   } catch (error) {
     console.error("Auth Verification Error:", error);

@@ -26,13 +26,25 @@ const getPrismaClient = () => {
       .replace(/^['"](.*)['"]$/, "$1"),
   });
 
-  return new PrismaClient({
+  const client = new PrismaClient({
     adapter,
     log: ["error", "warn"],
   });
+
+  // Debug: Log available models to console once
+  if (process.env.NODE_ENV !== "production") {
+    const models = Object.keys(client).filter(key => !key.startsWith("_") && !key.startsWith("$"));
+    console.log(">>> Prisma Models Available:", models);
+  }
+
+  return client;
 };
 
-export const prisma = globalForPrisma.prisma ?? getPrismaClient();
+// Triggering client reload for new models - Force Reload Flag: v2
+const forceReload = true;
+export const prisma = (process.env.NODE_ENV !== "production" && forceReload) 
+  ? getPrismaClient() 
+  : (globalForPrisma.prisma ?? getPrismaClient());
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;

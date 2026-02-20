@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     const voucherItems = aggregateVoucherItems(expenses, type);
     const totalAmount = voucherItems.reduce((sum: number, item: any) => sum + item.amount, 0);
     
-    // Global Serial Logic: Purely sequential numbering
+    // Global Sequential Logic: PC-0001, PC-0002, CV-0001, CV-0002
     const globalPrefix = type === "Cash Voucher" ? `CV-` : `PC-`;
     const lastVoucherGlobal = await prisma.voucherRecord.findFirst({
         where: {

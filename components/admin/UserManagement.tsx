@@ -20,7 +20,10 @@ export default function UserManagement() {
     code: "",
     email: "",
     password: "",
-    access: "Finance"
+    access: "Finance",
+    canReturnable: false,
+    canNonReturnable: false,
+    canOutdoorWork: false
   });
 
   // Real-time listener
@@ -42,7 +45,8 @@ export default function UserManagement() {
   );
 
   const handleInputChange = (e: any) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const value = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setFormData({ ...formData, [e.target.name]: value });
   };
 
   const handleSearch = () => {
@@ -61,7 +65,10 @@ export default function UserManagement() {
       if (result.success) {
         alert("Account Created!");
         setIsAddingUser(false);
-        setFormData({ name: "", code: "", email: "", password: "", access: "Finance" });
+        setFormData({ 
+            name: "", code: "", email: "", password: "", access: "Finance",
+            canReturnable: false, canNonReturnable: false, canOutdoorWork: false
+        });
       } else {
         alert(result.message);
       }
@@ -153,8 +160,13 @@ export default function UserManagement() {
                                 <td className="border-r border-gray-200 text-center text-xs font-bold text-orange-600 bg-orange-50/30 font-mono">{user.code}</td>
                                 <td className="border-r border-gray-200 px-4 py-3 text-xs font-medium text-gray-500">{user.email}</td>
                                 <td className="border-r border-gray-200 text-center">
-                                    <span className={`text-[8px] font-black px-3 py-1 rounded-full border uppercase tracking-tighter ${user.role === 'Admin' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
-                                        {user.role === 'Admin' ? 'Super Admin' : 'Finance Officer'}
+                                    <span className={`text-[8px] font-black px-3 py-1 rounded-full border uppercase tracking-tighter ${
+                                        user.role === 'Admin' ? 'bg-purple-50 text-purple-700 border-purple-200' : 
+                                        user.role === 'Security' ? 'bg-blue-50 text-blue-700 border-blue-200' : 
+                                        user.role === 'Operation' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                                        'bg-green-50 text-green-700 border-green-200'
+                                    }`}>
+                                        {user.role === 'Admin' ? 'Super Admin' : user.role === 'Security' ? 'Security Officer' : user.role === 'Operation' ? 'Operation Executive' : 'Finance Officer'}
                                     </span>
                                 </td>
                                 <td className="text-center px-4">
@@ -200,9 +212,31 @@ export default function UserManagement() {
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">System Designation & Access</label>
                         <select name="access" value={formData.access} onChange={handleInputChange} className="border-2 border-gray-100 rounded-xl px-4 py-3 text-sm font-bold focus:border-orange-600 outline-none bg-white text-gray-900 font-black uppercase">
                             <option value="Finance">Finance Officer (Finance Dashboard)</option>
+                            <option value="Security">Security Officer (Security Dashboard)</option>
+                            <option value="Operation">Operation Executive (Operation Dashboard)</option>
                             <option value="Admin">Super Admin (Admin Dashboard)</option>
                         </select>
                     </div>
+
+                    {formData.access === "Operation" && (
+                        <div className="bg-orange-50/50 p-6 rounded-2xl border border-orange-100 space-y-4 animate-fadeIn">
+                            <label className="text-[10px] font-black text-orange-600 uppercase tracking-widest block mb-2">Operational Permissions</label>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <input type="checkbox" name="canReturnable" checked={formData.canReturnable} onChange={handleInputChange} className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
+                                    <span className="text-[11px] font-bold text-gray-700 uppercase group-hover:text-orange-600 transition-colors">Returnable Pass</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <input type="checkbox" name="canNonReturnable" checked={formData.canNonReturnable} onChange={handleInputChange} className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
+                                    <span className="text-[11px] font-bold text-gray-700 uppercase group-hover:text-orange-600 transition-colors">Non-Returnable Pass</span>
+                                </label>
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <input type="checkbox" name="canOutdoorWork" checked={formData.canOutdoorWork} onChange={handleInputChange} className="w-5 h-5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
+                                    <span className="text-[11px] font-bold text-gray-700 uppercase group-hover:text-orange-600 transition-colors">OutdoorWork Pass</span>
+                                </label>
+                            </div>
+                        </div>
+                    )}
                     <div className="grid grid-cols-2 gap-6">
                         <div className="flex flex-col gap-2">
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Login Email</label>

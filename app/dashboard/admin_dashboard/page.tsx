@@ -4,12 +4,15 @@ import Link from "next/link";
 import { useState, useEffect } from "react";
 import UserManagement from "@/components/admin/UserManagement";
 import ExpenseReports from "@/components/fin/ExpenseReports";
+import AdminGatePassRecords from "@/components/admin/AdminGatePassRecords";
+import GatePassAnalytics from "@/components/admin/GatePassAnalytics";
+import AdminVisitorRecords from "@/components/admin/AdminVisitorRecords";
 import { signOutUser, auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 
 export default function AdminDashboardPage() {
-  const [activeTab, setActiveTab] = useState("reports");
+  const [activeTab, setActiveTab] = useState("pc_cv_reports");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [userData, setUserData] = useState<{ name: string; role: string; code: string } | null>(null);
@@ -105,13 +108,13 @@ export default function AdminDashboardPage() {
              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-6">Core Administration</h3>
              <nav className="space-y-2">
                <button
-                  onClick={() => { setActiveTab("reports"); setIsSidebarOpen(false); }}
+                  onClick={() => { setActiveTab("pc_cv_reports"); setIsSidebarOpen(false); }}
                   className={`w-full flex items-center px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
-                    activeTab === "reports" ? "bg-orange-600 text-white shadow-lg shadow-orange-900/40" : "hover:bg-gray-800 hover:text-white"
+                    activeTab === "pc_cv_reports" ? "bg-orange-600 text-white shadow-lg shadow-orange-900/40" : "hover:bg-gray-800 hover:text-white"
                   }`}
                >
                   <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                  Master Reports
+                  PC&CV Report
                </button>
                <button
                   onClick={() => { setActiveTab("users"); setIsSidebarOpen(false); }}
@@ -122,16 +125,46 @@ export default function AdminDashboardPage() {
                   <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
                   Manage Users
                </button>
+
+               <div className="h-px bg-gray-800 my-4 opacity-50"></div>
+               <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-[0.2em] mb-4">Gate Pass Control</h3>
+
+               <button
+                  onClick={() => { setActiveTab("gp_analytics"); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
+                    activeTab === "gp_analytics" ? "bg-orange-600 text-white shadow-lg shadow-orange-900/40" : "hover:bg-gray-800 hover:text-white"
+                  }`}
+               >
+                  <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 8v8m-4-5v5m-4-2v2m-2 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                  GP Analytics
+               </button>
+
+               <button
+                  onClick={() => { setActiveTab("gp_records"); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
+                    activeTab === "gp_records" ? "bg-orange-600 text-white shadow-lg shadow-orange-900/40" : "hover:bg-gray-800 hover:text-white"
+                  }`}
+               >
+                  <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                  GP Master Records
+               </button>
+
+               <button
+                  onClick={() => { setActiveTab("visitors"); setIsSidebarOpen(false); }}
+                  className={`w-full flex items-center px-4 py-3 text-xs font-black uppercase tracking-widest rounded-xl transition-all ${
+                    activeTab === "visitors" ? "bg-orange-600 text-white shadow-lg shadow-orange-900/40" : "hover:bg-gray-800 hover:text-white"
+                  }`}
+               >
+                  <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                  Visitor Ledger
+               </button>
              </nav>
           </div>
           <div className="px-6 py-6 border-t border-gray-800 bg-gray-950/50">
-            <div className="p-4 bg-gray-800/50 rounded-2xl">
-                <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest">System Engine</p>
-                <p className="text-[10px] font-bold text-green-500 uppercase mt-1 flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                    Verified & Online
-                </p>
-            </div>
+            <Link href="/dashboard" className="flex items-center text-[10px] font-black uppercase tracking-[0.2em] text-gray-500 hover:text-white transition-colors group">
+              <svg className="w-4 h-4 mr-3 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+              Master Portal
+            </Link>
           </div>
         </aside>
 
@@ -147,20 +180,50 @@ export default function AdminDashboardPage() {
                 {activeTab === "users" && (
                     <div className="space-y-6 animate-fadeIn">
                         <header className="mb-2">
-                            <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tight">Identity Management</h1>
+                            <h1 className="text-3xl font-black uppercase tracking-tight">Identity Management</h1>
                             <p className="text-gray-500 font-medium">Configure corporate user access levels and authentication.</p>
                         </header>
                         <UserManagement />
                     </div>
                 )}
                 
-                {activeTab === "reports" && (
+                {activeTab === "pc_cv_reports" && (
                     <div className="space-y-6 animate-fadeIn">
                         <header className="mb-2 px-10">
-                            <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tight text-center">Global Analysis</h1>
+                            <h1 className="text-3xl font-black text-gray-900 uppercase tracking-tight text-center">Petty Cash & Cash Voucher Analysis</h1>
                             <p className="text-gray-500 font-medium text-center">Real-time consolidated data from across the enterprise.</p>
                         </header>
                         <ExpenseReports />
+                    </div>
+                )}
+
+                {activeTab === "gp_analytics" && (
+                    <div className="space-y-6 animate-fadeIn">
+                        <header className="mb-2">
+                            <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Gate Pass Analytics</h1>
+                            <p className="text-slate-500 font-medium italic">Strategic insight into industrial material and personnel movement.</p>
+                        </header>
+                        <GatePassAnalytics />
+                    </div>
+                )}
+
+                {activeTab === "gp_records" && (
+                    <div className="space-y-6 animate-fadeIn">
+                        <header className="mb-2">
+                            <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Gate Pass Master Records</h1>
+                            <p className="text-slate-500 font-medium">Comprehensive audit trail of all generated security passes.</p>
+                        </header>
+                        <AdminGatePassRecords />
+                    </div>
+                )}
+
+                {activeTab === "visitors" && (
+                    <div className="space-y-6 animate-fadeIn">
+                        <header className="mb-2">
+                            <h1 className="text-3xl font-black uppercase tracking-tight text-slate-900">Visitor Master Ledger</h1>
+                            <p className="text-slate-500 font-medium">Complete record of visitor entries and departures.</p>
+                        </header>
+                        <AdminVisitorRecords />
                     </div>
                 )}
           </div>
