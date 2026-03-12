@@ -2,15 +2,20 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { authenticatedFetch } from "@/lib/utils";
-import { auth } from "@/lib/firebase";
-import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import { auth, db } from "@/lib/firebase";
+import { EmailAuthProvider, reauthenticateWithCredential, onAuthStateChanged } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import VoucherPrintModal from "./VoucherPrintModal";
 
 export default function ViewSheets() {
   const [expenses, setExpenses] = useState<any[]>([]);
+  const [vouchers, setVouchers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isEditMode, setIsEditMode] = useState(false);
   const [modifiedRowIds, setModifiedRowIds] = useState<Set<string>>(new Set());
   const [isSavingAll, setIsSavingAll] = useState(false);
+  const [selectedVoucher, setSelectedVoucher] = useState<any>(null);
+  const [currentUserName, setCurrentUserName] = useState<string>("");
   
   // Password Modal State
   const [isPassModalOpen, setIsPassModalOpen] = useState(false);
@@ -38,11 +43,16 @@ export default function ViewSheets() {
   const fetchExpenses = async () => {
     setIsLoading(true);
     try {
-      const response = await authenticatedFetch("/api/expenses/list?timeframe=all");
-      const result = await response.json();
-      if (result.success) {
-        // Format dates to DD/MM/YYYY for the editable inputs
-        const formatted = result.expenses.map((e: any) => {
+      const [expRes, vchRes] = await Promise.all([
+        authenticatedFetch("/api/expenses/list?timeframe=all"),
+        authenticatedFetch("/api/vouchers/list")
+      ]);
+      
+      const expResult = await expRes.json();
+      const vchResult = await vchRes.json();
+
+      if (expResult.success) {
+        const formatted = expResult.expenses.map((e: any) => {
             const d = new Date(e.date);
             return {
                 ...e,
@@ -50,6 +60,9 @@ export default function ViewSheets() {
             };
         });
         setExpenses(formatted);
+      }
+      if (vchResult.success) {
+        setVouchers(vchResult.vouchers);
       }
     } catch (error) {
       console.error("Fetch Error:", error);
@@ -60,7 +73,29 @@ export default function ViewSheets() {
 
   useEffect(() => {
     fetchExpenses();
+
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        const userDoc = await getDoc(doc(db, "users", user.uid));
+        if (userDoc.exists()) {
+          setCurrentUserName(userDoc.data().name);
+        }
+      }
+    });
+    return () => unsubscribe();
   }, []);
+
+  const handleViewVoucher = (serial: string) => {
+    const vch = vouchers.find(v => v.serialNumber === serial);
+    if (vch) {
+        setSelectedVoucher({
+            ...vch,
+            preparedBy: (vch.preparedBy === "Finance Officer" || !vch.preparedBy) ? currentUserName : vch.preparedBy
+        });
+    } else {
+        alert("Voucher details not found in current sync.");
+    }
+  };
 
   const handleCellChange = (id: string, field: string, value: string) => {
     const row = expenses.find(e => e.id === id);
@@ -315,12 +350,14 @@ export default function ViewSheets() {
                   <th className="w-12 border border-gray-300 py-3 text-[9px] font-black uppercase text-center">Prs</th>
                   <th className="w-12 border border-gray-300 py-3 text-[9px] font-black uppercase text-center">Days</th>
                   <th className="w-28 border border-gray-300 py-3 text-[9px] font-black uppercase text-right px-3">Amount</th>
+                  <th className="w-24 border border-gray-300 py-3 text-[9px] font-black uppercase text-center px-3">Voucher No</th>
                   <th className="border border-gray-300 py-3 text-[9px] font-black uppercase text-left px-3">Remarks</th>
+                  <th className="w-16 border border-gray-300 py-3 text-[9px] font-black uppercase text-center px-3">View</th>
                 </tr>
               </thead>
               <tbody className="bg-white text-gray-900">
                 {isLoading ? (
-                    <tr><td colSpan={10} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Synchronizing Live Database...</td></tr>
+                    <tr><td colSpan={12} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs animate-pulse">Synchronizing Live Database...</td></tr>
                 ) : filteredData.length > 0 ? (
                   filteredData.map((row: any, index: number) => {
                     const canEditRow = isEditMode;
@@ -386,6 +423,9 @@ export default function ViewSheets() {
                                 <span className="block text-right text-[10px] font-black">Rs. {row.amount.toLocaleString()}</span>
                             )}
                         </td>
+                        <td className="border-r border-gray-200 px-3 text-center">
+                            <span className="text-[10px] font-black text-orange-600">{row.voucherId || "-"}</span>
+                        </td>
                         <td className="border-r border-gray-200 px-3">
                             {canEditRow ? (
                                 <input type="text" value={row.remarks || ""} onChange={(e) => handleCellChange(row.id, 'remarks', e.target.value)} className="w-full h-full py-2 text-[10px] bg-transparent border-none focus:ring-2 focus:ring-blue-500 outline-none text-gray-500 italic" />
@@ -393,11 +433,21 @@ export default function ViewSheets() {
                                 <span className="text-[10px] text-gray-500 italic lowercase first-letter:uppercase truncate max-w-[150px] block">{row.remarks || "-"}</span>
                             )}
                         </td>
+                        <td className="border-r border-gray-200 px-3 text-center">
+                            {row.voucherId && (
+                                <button 
+                                    onClick={() => handleViewVoucher(row.voucherId)}
+                                    className="text-[9px] font-black uppercase text-blue-600 hover:text-blue-800 transition-colors border border-blue-100 px-2 py-1 rounded hover:bg-blue-50 shadow-sm"
+                                >
+                                    View
+                                </button>
+                            )}
+                        </td>
                         </tr>
                     );
                   })
                 ) : (
-                  <tr><td colSpan={10} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs bg-white">No entries found for selected criteria</td></tr>
+                  <tr><td colSpan={12} className="py-20 text-center text-gray-400 font-bold uppercase tracking-widest text-xs bg-white">No entries found for selected criteria</td></tr>
                 )}
               </tbody>
             </table>
@@ -476,6 +526,14 @@ export default function ViewSheets() {
                   </div>
               </div>
           </div>
+      )}
+
+      {/* VOUCHER PRINT MODAL */}
+      {selectedVoucher && (
+        <VoucherPrintModal 
+          voucher={selectedVoucher}
+          onClose={() => setSelectedVoucher(null)}
+        />
       )}
     </div>
   );
