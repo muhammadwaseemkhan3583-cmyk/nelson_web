@@ -6,6 +6,8 @@ import { auth, db } from "@/lib/firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import VoucherPrintModal from "./VoucherPrintModal";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 
 export default function ViewSheets() {
   const [expenses, setExpenses] = useState<any[]>([]);
@@ -26,6 +28,8 @@ export default function ViewSheets() {
   // Unified Professional Filters
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [selectedTimeframe, setSelectedTimeframe] = useState("1h"); // Default: Last 1 Hour
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [fromMonth, setFromMonth] = useState(1);
   const [toMonth, setToMonth] = useState(new Date().getMonth() + 1);
   const [selectedType, setSelectedType] = useState("All");
@@ -184,6 +188,81 @@ export default function ViewSheets() {
     }
   };
 
+  const handleDownloadExcel = async () => {
+    if (filteredData.length === 0) {
+        alert("No data available to export.");
+        return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Ledger");
+
+    // Define Columns
+    worksheet.columns = [
+        { header: "Sr#", key: "sr", width: 5 },
+        { header: "Date", key: "date", width: 12 },
+        { header: "Category/Desc", key: "desc", width: 25 },
+        { header: "Department", key: "dept", width: 20 },
+        { header: "Emp Code", key: "code", width: 12 },
+        { header: "Employee/Source", key: "source", width: 30 },
+        { header: "Persons", key: "persons", width: 10 },
+        { header: "Days", key: "days", width: 10 },
+        { header: "Amount", key: "amount", width: 15 },
+        { header: "Voucher No", key: "vch", width: 15 },
+        { header: "Remarks", key: "remarks", width: 40 }
+    ];
+
+    // Add Rows
+    filteredData.forEach((e, index) => {
+        worksheet.addRow({
+            sr: index + 1,
+            date: new Date(e.date).toLocaleDateString('en-GB'),
+            desc: (e.type === "Petty Cash" ? e.category : e.description) || "N/A",
+            dept: e.department || "N/A",
+            code: e.empCode || "-",
+            source: e.type === "Petty Cash" ? (e.empName || "-") : (e.vendorName || "DIRECT"),
+            persons: e.numPersons || 0,
+            days: e.numDays || 0,
+            amount: e.amount,
+            vch: e.voucherId || "-",
+            remarks: e.remarks || "-"
+        });
+    });
+
+    // Style Header (Blue Background, White Bold Text)
+    const headerRow = worksheet.getRow(1);
+    headerRow.eachCell((cell) => {
+        cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF1E40AF' } // Professional Blue (Blue-800)
+        };
+        cell.font = {
+            color: { argb: 'FFFFFFFF' },
+            bold: true,
+            size: 11
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    // Auto-fit column widths (Simplified adjustment)
+    worksheet.columns.forEach(column => {
+        let maxColumnLength = 0;
+        column.eachCell!({ includeEmpty: true }, (cell) => {
+            const columnLength = cell.value ? cell.value.toString().length : 10;
+            if (columnLength > maxColumnLength) {
+                maxColumnLength = columnLength;
+            }
+        });
+        column.width = maxColumnLength < 10 ? 10 : maxColumnLength + 2;
+    });
+
+    // Generate Buffer and Save
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    saveAs(blob, `Finance_Ledger_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   // Filter options derived from database data (Normalized for uniqueness)
   const departments = ["All", ...Array.from(new Set(expenses.map((e: any) => (e.department || "").trim().toUpperCase()).filter(Boolean)))].sort();
   const categories = ["All", ...Array.from(new Set(expenses.map((e: any) => (e.category || "").trim().toUpperCase()).filter(Boolean)))].sort();
@@ -211,8 +290,15 @@ export default function ViewSheets() {
       } else if (selectedTimeframe === "15d") {
         matchTime = (now.getTime() - eDate.getTime()) <= (15 * 24 * 60 * 60 * 1000);
       } else if (selectedTimeframe === "month_range") {
-        const m = eDate.getMonth() + 1;
-        matchTime = m >= fromMonth && m <= toMonth;
+        if (fromDate && toDate) {
+            const start = new Date(fromDate);
+            const end = new Date(toDate);
+            end.setHours(23, 59, 59, 999);
+            matchTime = eDate >= start && eDate <= end;
+        } else {
+            const m = eDate.getMonth() + 1;
+            matchTime = m >= fromMonth && m <= toMonth;
+        }
       } else if (selectedTimeframe === "1m") {
         const oneMonthAgo = new Date(); oneMonthAgo.setMonth(now.getMonth() - 1);
         matchTime = eDate >= oneMonthAgo;
@@ -231,7 +317,7 @@ export default function ViewSheets() {
 
       return matchTime && matchType && matchDept && matchCat;
     });
-  }, [expenses, selectedYear, selectedTimeframe, fromMonth, toMonth, selectedType, selectedDept, selectedCat, searchName, modifiedRowIds]);
+  }, [expenses, selectedYear, selectedTimeframe, fromDate, toDate, fromMonth, toMonth, selectedType, selectedDept, selectedCat, searchName, modifiedRowIds]);
 
   const totalAmount = filteredData.reduce((s: number, r: any) => s + r.amount, 0);
 
@@ -266,14 +352,20 @@ export default function ViewSheets() {
             </div>
 
             {selectedTimeframe === "month_range" && (
-                <div className="flex items-center gap-1 shrink-0 bg-gray-800 rounded-lg px-1">
-                    <select value={fromMonth} onChange={(e) => setFromMonth(parseInt(e.target.value))} className="bg-transparent border-none text-[9px] font-black uppercase text-white px-1 py-1.5 outline-none cursor-pointer w-10">
-                        {months.map(m => <option key={m.val} value={m.val}>{m.name}</option>)}
-                    </select>
-                    <span className="text-gray-600 text-[8px]">-</span>
-                    <select value={toMonth} onChange={(e) => setToMonth(parseInt(e.target.value))} className="bg-transparent border-none text-[9px] font-black uppercase text-white px-1 py-1.5 outline-none cursor-pointer w-10">
-                        {months.map(m => <option key={m.val} value={m.val}>{m.name}</option>)}
-                    </select>
+                <div className="flex items-center gap-1 shrink-0 bg-gray-800 rounded-lg px-2 py-0.5">
+                    <input 
+                        type="date" 
+                        value={fromDate} 
+                        onChange={(e) => setFromDate(e.target.value)} 
+                        className="bg-transparent border-none text-[9px] font-black uppercase text-white outline-none cursor-pointer w-24 [color-scheme:dark]"
+                    />
+                    <span className="text-gray-600 text-[8px] font-black">TO</span>
+                    <input 
+                        type="date" 
+                        value={toDate} 
+                        onChange={(e) => setToDate(e.target.value)} 
+                        className="bg-transparent border-none text-[9px] font-black uppercase text-white outline-none cursor-pointer w-24 [color-scheme:dark]"
+                    />
                 </div>
             )}
 
@@ -311,6 +403,13 @@ export default function ViewSheets() {
         </div>
 
         <div className="flex items-center gap-2 shrink-0 ml-2 border-l border-gray-800 pl-2">
+            <button 
+                onClick={handleDownloadExcel} 
+                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-tighter transition-all active:scale-95 flex items-center gap-1 shadow-lg shadow-green-900/20"
+            >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Excel
+            </button>
             {!isEditMode ? (
                 <button 
                     onClick={handleEnableEditing} 

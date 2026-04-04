@@ -7,10 +7,15 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import ExcelJS from "exceljs";
+import { saveAs } from "file-saver";
 
 export default function VoucherRecords() {
   const [searchTerm, setSearchTerm] = useState("");
   const [timeframe, setTimeframe] = useState("Last 5 Days");
+  const [selectedType, setSelectedType] = useState("All");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedVoucher, setSelectedVoucher] = useState<any>(null);
@@ -201,11 +206,86 @@ export default function VoucherRecords() {
       }
   };
 
+  const handleDownloadExcel = async () => {
+    if (filteredRecords.length === 0) {
+        alert("No data available to export.");
+        return;
+    }
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Vouchers");
+
+    // Define Columns
+    worksheet.columns = [
+        { header: "Sr#", key: "sr", width: 5 },
+        { header: "Voucher Serial Number", key: "serial", width: 25 },
+        { header: "Type", key: "type", width: 10 },
+        { header: "Issue Date", key: "date", width: 15 },
+        { header: "Net Amount", key: "amount", width: 15 },
+        { header: "Officer", key: "officer", width: 25 },
+        { header: "Status", key: "status", width: 20 },
+        { header: "Last Updated", key: "updatedAt", width: 25 }
+    ];
+
+    // Add Rows
+    filteredRecords.forEach((rec, index) => {
+        worksheet.addRow({
+            sr: index + 1,
+            serial: rec.serialNumber,
+            type: rec.type === "Cash Voucher" ? "CV" : "PC",
+            date: new Date(rec.date).toLocaleDateString('en-GB'),
+            amount: rec.totalAmount,
+            officer: rec.preparedBy || "-",
+            status: rec.status || "Pending",
+            updatedAt: new Date(rec.statusUpdatedAt || rec.createdAt).toLocaleString('en-GB')
+        });
+    });
+
+    // Style Header (Blue Background, White Bold Text)
+    const headerRow = worksheet.getRow(1);
+    headerRow.eachCell((cell) => {
+        cell.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FF1E40AF' }
+        };
+        cell.font = {
+            color: { argb: 'FFFFFFFF' },
+            bold: true,
+            size: 11
+        };
+        cell.alignment = { vertical: 'middle', horizontal: 'center' };
+    });
+
+    // Auto-fit column widths
+    worksheet.columns.forEach(column => {
+        let maxColumnLength = 0;
+        column.eachCell!({ includeEmpty: true }, (cell) => {
+            const columnLength = cell.value ? cell.value.toString().length : 10;
+            if (columnLength > maxColumnLength) {
+                maxColumnLength = columnLength;
+            }
+        });
+        column.width = maxColumnLength < 10 ? 10 : maxColumnLength + 2;
+    });
+
+    // Generate Buffer and Save
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    saveAs(blob, `Voucher_Records_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   const filteredRecords = useMemo(() => {
     const filtered = vouchers.filter((rec: any) => {
+      // 1. Type Filter
+      const matchType = selectedType === "All" || rec.type === selectedType;
+      if (!matchType) return false;
+
+      // 2. Search Filter
       const matchSerial = rec.serialNumber.toLowerCase().includes(searchTerm.toLowerCase());
       if (!matchSerial) return false;
 
+      // 3. Timeframe Filter
       // If it's NOT Cleared, always show it (bypass timeframe filter)
       const isCleared = rec.status === "Cleared";
       if (!isCleared) return true;
@@ -213,6 +293,17 @@ export default function VoucherRecords() {
       // If it IS Cleared, apply Timeframe Logic
       const rowDate = new Date(rec.date);
       const now = new Date();
+      
+      if (timeframe === "Range") {
+          if (fromDate && toDate) {
+              const start = new Date(fromDate);
+              const end = new Date(toDate);
+              end.setHours(23, 59, 59, 999);
+              return rowDate >= start && rowDate <= end;
+          }
+          return true; // Show all if range selected but dates not set
+      }
+
       const diffMs = now.getTime() - rowDate.getTime();
       const diffDays = diffMs / (1000 * 3600 * 24);
 
@@ -236,7 +327,7 @@ export default function VoucherRecords() {
         // If both same status group, sort by date desc
         return new Date(b.date).getTime() - new Date(a.date).getTime();
     });
-  }, [searchTerm, timeframe, vouchers]);
+  }, [searchTerm, timeframe, selectedType, fromDate, toDate, vouchers]);
 
   const totalSum = filteredRecords.reduce((s: number, r: any) => s + r.totalAmount, 0);
 
@@ -257,6 +348,18 @@ export default function VoucherRecords() {
                 />
             </div>
             <div className="flex flex-col gap-1">
+                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest text-gray-900">Voucher Type</span>
+                <select 
+                    value={selectedType} 
+                    onChange={(e) => setSelectedType(e.target.value)} 
+                    className="bg-gray-900 border border-gray-800 rounded-lg px-4 py-1.5 text-xs font-black uppercase text-white focus:ring-2 focus:ring-orange-500 outline-none cursor-pointer shadow-lg"
+                >
+                    <option value="All">All Record</option>
+                    <option value="Cash Voucher">Cash Voucher</option>
+                    <option value="Petty Cash">Petty Cash</option>
+                </select>
+            </div>
+            <div className="flex flex-col gap-1">
                 <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest text-gray-900">Timeframe</span>
                 <select 
                     value={timeframe} 
@@ -268,12 +371,39 @@ export default function VoucherRecords() {
                     <option>3 Months</option>
                     <option>6 Months</option>
                     <option>1 Year</option>
+                    <option value="Range">Range</option>
                     <option>All</option>
                 </select>
             </div>
+            {timeframe === "Range" && (
+                <div className="flex items-center gap-2 bg-gray-50 p-1.5 rounded-lg border-2 border-gray-100">
+                    <input 
+                        type="date" 
+                        value={fromDate} 
+                        onChange={(e) => setFromDate(e.target.value)} 
+                        className="bg-transparent border-none text-[10px] font-black uppercase outline-none cursor-pointer w-32"
+                    />
+                    <span className="text-gray-400 text-[8px] font-black">TO</span>
+                    <input 
+                        type="date" 
+                        value={toDate} 
+                        onChange={(e) => setToDate(e.target.value)} 
+                        className="bg-transparent border-none text-[10px] font-black uppercase outline-none cursor-pointer w-32"
+                    />
+                </div>
+            )}
         </div>
 
-        <button onClick={() => fetchVouchers()} className="bg-gray-900 text-white px-6 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all">Refresh Sync</button>
+        <div className="flex items-center gap-3">
+            <button 
+                onClick={handleDownloadExcel} 
+                className="bg-green-600 text-white px-6 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-green-700 transition-all flex items-center gap-2 shadow-lg shadow-green-900/10"
+            >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                Download Excel
+            </button>
+            <button onClick={() => fetchVouchers()} className="bg-gray-900 text-white px-6 py-2.5 rounded-lg font-black text-xs uppercase tracking-widest hover:bg-orange-600 transition-all">Refresh Sync</button>
+        </div>
       </div>
 
       {/* LIST TABLE */}
