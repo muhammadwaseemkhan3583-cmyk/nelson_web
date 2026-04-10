@@ -5,12 +5,11 @@ import { db, auth } from "@/lib/firebase";
 import { 
   collection, 
   setDoc,
+  deleteDoc,
   doc,
   query, 
   where, 
   getDocs, 
-  limit,
-  orderBy, 
   serverTimestamp 
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -21,7 +20,31 @@ import {
 } from 'recharts';
 import { authenticatedFetch } from "@/lib/utils";
 
-interface ScrapeEntry {
+/**
+ * PERSONAL PERFORMANCE REPORTS COMPONENT
+ * Manages monthly performance tracking, scrape sales, and masjid activities.
+ */
+
+export interface FridayBayanDetail {
+  date: string;
+  topic: string;
+  remarks: string;
+}
+
+export interface IslahiBayanDetail {
+  date: string;
+  topic: string;
+  remarks: string;
+}
+
+export interface ExtraWorkEntry {
+  workDetail: string;
+  assignedBy: string;
+  date: string;
+  remarks: string;
+}
+
+export interface ScrapeEntry {
   date: string;
   item: string;
   qty: string;
@@ -31,13 +54,14 @@ interface ScrapeEntry {
   remarks: string;
 }
 
-interface MasjidActivity {
-  fridayBayan: number;
+export interface MasjidActivity {
+  fridayBayanList: FridayBayanDetail[];
+  islahiBayanList: IslahiBayanDetail[];
   islahiBayanat: number;
   tableghiJamat: number;
   ghast: number;
-  taleemUlQuran: number;
-  nazraQaida: number;
+  taleemUlQuran: number; 
+  nazraQaida: number;    
 }
 
 export default function PersonalReports() {
@@ -46,22 +70,29 @@ export default function PersonalReports() {
   const [saving, setSaving] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   
-  // EDITABLE PERSONAL DETAILS
   const [personalDetail, setPersonalDetail] = useState({
     name: "Ubaidullah",
-    designation: "Executive",
-    code: "1208"
+    designation: "Senior-Executive",
+    code: "11"
   });
   
-  // SELECTION STATE (SHARED)
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   
-  // DATA STATE
   const [scrapeEntries, setScrapeEntries] = useState<ScrapeEntry[]>([{ date: "", item: "", qty: "", unit: "KG", rate: "", amount: 0, remarks: "" }]);
-  const [masjidData, setMasjidData] = useState<MasjidActivity>({ fridayBayan: 0, islahiBayanat: 0, tableghiJamat: 0, ghast: 0, taleemUlQuran: 0, nazraQaida: 0 });
+  const [masjidData, setMasjidData] = useState<MasjidActivity>({ 
+    fridayBayanList: [{ date: "", topic: "", remarks: "" }], 
+    islahiBayanList: [{ date: "", topic: "", remarks: "" }], 
+    islahiBayanat: 0, 
+    tableghiJamat: 0, 
+    ghast: 0, 
+    taleemUlQuran: 0, 
+    nazraQaida: 0 
+  });
+  const [extraWorkEntries, setExtraWorkEntries] = useState<ExtraWorkEntry[]>([]);
   const [financeLedger, setFinanceLedger] = useState<any[]>([]);
   const [savedReports, setSavedReports] = useState<any[]>([]);
+  const [currentSavedReport, setCurrentSavedReport] = useState<any>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -93,46 +124,50 @@ export default function PersonalReports() {
       const q = query(collection(db, "personal_monthly_reports"), where("userId", "==", uid));
       const snap = await getDocs(q);
       const reports = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      reports.sort((a: any, b: any) => (b.year * 100 + b.month) - (a.year * 100 + a.month));
+      reports.sort((a: any, b: any) => (Number(b.year) * 100 + Number(b.month)) - (Number(a.year) * 100 + Number(a.month)));
       setSavedReports(reports);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  const fetchSelectedMonthSavedData = async () => {
-    if (!currentUser) return;
-    try {
-        const q = query(
-            collection(db, "personal_monthly_reports"), 
-            where("userId", "==", currentUser.uid),
-            where("month", "==", selectedMonth),
-            where("year", "==", selectedYear),
-            limit(1)
-        );
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-            const data = snap.docs[0].data();
-            setScrapeEntries(data.scrape || [{ date: "", item: "", qty: "", unit: "KG", rate: "", amount: 0, remarks: "" }]);
-            setMasjidData(data.masjid || { fridayBayan: 0, islahiBayanat: 0, tableghiJamat: 0, ghast: 0, taleemUlQuran: 0, nazraQaida: 0 });
-            if (data.userName) setPersonalDetail(prev => ({ ...prev, name: data.userName, designation: data.designation || prev.designation, code: data.officerCode || prev.code }));
-        } else {
-            setScrapeEntries([{ date: "", item: "", qty: "", unit: "KG", rate: "", amount: 0, remarks: "" }]);
-            setMasjidData({ fridayBayan: 0, islahiBayanat: 0, tableghiJamat: 0, ghast: 0, taleemUlQuran: 0, nazraQaida: 0 });
-        }
-    } catch (e) { console.error(e); }
+  const fetchSelectedMonthSavedData = () => {
+    if (!currentUser || savedReports.length === 0) return;
+    const matchingReport = savedReports.find(r => Number(r.month) === Number(selectedMonth) && Number(r.year) === Number(selectedYear));
+    if (matchingReport) {
+        setCurrentSavedReport(matchingReport);
+        setScrapeEntries(matchingReport.scrape || [{ date: "", item: "", qty: "", unit: "KG", rate: "", amount: 0, remarks: "" }]);
+        const archivedMasjid = matchingReport.masjid || {};
+        setMasjidData({
+            fridayBayanList: archivedMasjid.fridayBayanList || [{ date: "", topic: "", remarks: "" }],
+            islahiBayanList: archivedMasjid.islahiBayanList || [{ date: "", topic: "", remarks: "" }],
+            islahiBayanat: archivedMasjid.islahiBayanat || 0,
+            tableghiJamat: archivedMasjid.tableghiJamat || 0,
+            ghast: archivedMasjid.ghast || 0,
+            taleemUlQuran: archivedMasjid.taleemUlQuran || 0,
+            nazraQaida: archivedMasjid.nazraQaida || 0
+        });
+        setExtraWorkEntries(matchingReport.extraWork || []);
+        if (matchingReport.userName) setPersonalDetail(prev => ({ ...prev, name: matchingReport.userName, designation: matchingReport.designation || prev.designation, code: matchingReport.officerCode || prev.code }));
+    } else {
+        setCurrentSavedReport(null);
+    }
   };
 
   useEffect(() => {
     fetchFinanceLedger();
     fetchSelectedMonthSavedData();
-  }, [selectedMonth, selectedYear, currentUser]);
+  }, [selectedMonth, selectedYear, currentUser, savedReports]);
 
-  // CALCULATIONS
   const pettyCashTotal = useMemo(() => financeLedger.filter(e => e.type === "Petty Cash").reduce((s, e) => s + e.amount, 0), [financeLedger]);
   const cashVoucherTotal = useMemo(() => financeLedger.filter(e => e.type === "Cash Voucher").reduce((s, e) => s + e.amount, 0), [financeLedger]);
-  const financeTotal = useMemo(() => financeLedger.reduce((s, e) => s + e.amount, 0), [financeLedger]);
   const scrapeTotal = useMemo(() => scrapeEntries.reduce((s, e) => s + (Number(e.amount) || 0), 0), [scrapeEntries]);
-  const masjidTotalUnits = useMemo(() => Object.values(masjidData).reduce((a, b) => (Number(a) || 0) + (Number(b) || 0), 0), [masjidData]);
+  const fridayBayanCount = useMemo(() => (masjidData.fridayBayanList || []).filter(b => b.topic || b.date).length, [masjidData.fridayBayanList]);
+  const islahiBayanCount = useMemo(() => (masjidData.islahiBayanList || []).filter(b => b.topic || b.date).length, [masjidData.islahiBayanList]);
+  const masjidTotalUnits = useMemo(() => {
+    const { fridayBayanList, islahiBayanList, ...other } = masjidData;
+    const baseCount = Object.values(other).reduce((a: any, b: any) => (Number(a) || 0) + (Number(b) || 0), 0);
+    return baseCount + fridayBayanCount + islahiBayanCount;
+  }, [masjidData, fridayBayanCount, islahiBayanCount]);
 
   const graphData = useMemo(() => {
     const categories: any = {};
@@ -147,8 +182,8 @@ export default function PersonalReports() {
     const updated = [...scrapeEntries];
     (updated[index] as any)[field] = value;
     if (field === 'qty' || field === 'rate') {
-        const q = parseFloat(updated[index].qty) || 0;
-        const r = parseFloat(updated[index].rate) || 0;
+        const q = parseFloat(String(updated[index].qty)) || 0;
+        const r = parseFloat(String(updated[index].rate)) || 0;
         updated[index].amount = q * r;
     }
     setScrapeEntries(updated);
@@ -162,15 +197,7 @@ export default function PersonalReports() {
         const cols = row.split('\t');
         const q = parseFloat(cols[2]) || 0;
         const r = parseFloat(cols[4]) || 0;
-        return { 
-            date: cols[0] || "", 
-            item: cols[1] || "", 
-            qty: cols[2] || "0", 
-            unit: cols[3] || "KG", 
-            rate: cols[4] || "0", 
-            amount: q * r, 
-            remarks: cols[5] || "" 
-        };
+        return { date: cols[0] || "", item: cols[1] || "", qty: cols[2] || "0", unit: cols[3] || "KG", rate: cols[4] || "0", amount: q * r, remarks: cols[5] || "" };
     });
     setScrapeEntries(scrapeEntries.length === 1 && !scrapeEntries[0].item ? newEntries : [...scrapeEntries, ...newEntries]);
   };
@@ -179,8 +206,6 @@ export default function PersonalReports() {
     const doc = new jsPDF('p', 'mm', 'a4');
     const monthName = new Date(2000, report.month - 1).toLocaleString('default', { month: 'long' });
     const blueHeader: [number, number, number] = [30, 58, 138];
-
-    // TOP HEADER
     doc.setFillColor(blueHeader[0], blueHeader[1], blueHeader[2]);
     doc.rect(0, 0, 210, 45, 'F');
     doc.setTextColor(255, 255, 255); 
@@ -189,22 +214,21 @@ export default function PersonalReports() {
     doc.text(`${monthName.toUpperCase()} ${report.year} | OFFICER: ${report.userName.toUpperCase()} (${report.officerCode})`, 105, 25, { align: "center" });
     doc.text(`DESIGNATION: ${(report.designation || personalDetail.designation).toUpperCase()}`, 105, 30, { align: "center" });
 
-    // SECTION 1: SCRAPE
+    const scrapeData = report.scrape || [];
+    const reportScrapeTotal = Number(report.scrapeTotal) || 0;
     doc.setTextColor(0); doc.setFontSize(12); doc.text("1. SCRAPE SALES ACTIVITY", 14, 55);
     autoTable(doc, {
         startY: 58,
         head: [['Date', 'Item Detail', 'Qty', 'Unit', 'Amount (PKR)']],
-        body: report.scrape.map((e: any) => [e.date || '-', e.item, e.qty, e.unit, e.amount.toLocaleString()]),
-        foot: [['', '', '', 'TOTAL SCRAPE', `Rs. ${report.scrapeTotal?.toLocaleString() || 0}`]],
+        body: scrapeData.map((e: any) => [e.date || '-', e.item || 'N/A', e.qty || '0', e.unit || 'KG', (Number(e.amount) || 0).toLocaleString()]),
+        foot: [['', '', '', 'TOTAL SCRAPE', `Rs. ${reportScrapeTotal.toLocaleString()}`]],
         theme: 'grid', headStyles: { fillColor: blueHeader }, footStyles: { fillColor: [240, 240, 240], textColor: [0, 0, 0], fontStyle: 'bold' },
         styles: { fontSize: 8, cellPadding: 2 }
     });
 
-    // SECTION 2: DEPARTMENTAL FINANCE
     const currentY = (doc as any).lastAutoTable.finalY + 15;
-    doc.setFontSize(12); doc.text("2. DEPARTMENTAL EXPENSE SUMMARY (CONSOLIDATED)", 14, currentY);
-    
-    const targetFinance = (financeLedger.length > 0 && selectedMonth === report.month) ? financeLedger : (report.financeSnapshot || []);
+    doc.setFontSize(12); doc.text("2. DEPARTMENTAL EXPENSE SUMMARY", 14, currentY);
+    const targetFinance = (financeLedger.length > 0 && Number(selectedMonth) === Number(report.month) && Number(selectedYear) === Number(report.year)) ? financeLedger : (report.financeSnapshot || []);
     const groupedFinance = targetFinance.reduce((acc: any, curr: any) => {
         const dept = (curr.department || "Other").toUpperCase();
         const cat = (curr.category || "General").toUpperCase();
@@ -212,7 +236,6 @@ export default function PersonalReports() {
         acc[dept][cat] = (acc[dept][cat] || 0) + curr.amount;
         return acc;
     }, {});
-
     const financeBody: any[] = [];
     Object.entries(groupedFinance).forEach(([dept, cats]: [string, any]) => {
         let deptTotal = 0;
@@ -222,7 +245,6 @@ export default function PersonalReports() {
         });
         financeBody.push([{ content: `${dept} TOTAL`, colSpan: 2, styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }, { content: deptTotal.toLocaleString(), styles: { fontStyle: 'bold', fillColor: [240, 240, 240] } }]);
     });
-
     autoTable(doc, {
         startY: currentY + 5, head: [['Department', 'Category', 'Amount (PKR)']], body: financeBody, theme: 'grid', headStyles: { fillColor: blueHeader }, styles: { fontSize: 8 },
         didParseCell: (data) => {
@@ -230,20 +252,75 @@ export default function PersonalReports() {
                 const prev = data.table.body[data.row.index - 1].cells[0].text[0];
                 if (prev === data.cell.text[0] && !data.cell.text[0].includes("TOTAL")) { data.cell.text = [""]; }
             }
+            if (data.cell.text[0].includes("TOTAL")) {
+                data.cell.styles.fillColor = [255, 255, 0]; 
+                data.cell.styles.textColor = [0, 0, 0];
+                data.cell.styles.fontStyle = 'bold';
+            }
         }
     });
 
-    // SECTION 3: MASJID
     const masjidY = (doc as any).lastAutoTable.finalY + 15;
+    const reportMasjid = report.masjid || {};
     doc.setFontSize(12); doc.text("3. MASJID ACTIVITY PERFORMANCE", 14, masjidY);
     autoTable(doc, {
         startY: masjidY + 5,
         head: [['Activity Type', 'Count']],
-        body: [['Friday Bayan', report.masjid?.fridayBayan || 0], ['Islahi Bayanat', report.masjid?.islahiBayanat || 0], ['Tableghi Jamat', report.masjid?.tableghiJamat || 0], ['Ghast', report.masjid?.ghast || 0], ['Taleem ul Quran', report.masjid?.taleemUlQuran || 0], ['Nazra Qaida', report.masjid?.nazraQaida || 0]],
+        body: [['Friday Bayan Total', (reportMasjid.fridayBayanList || []).length], ['Islahi Bayanat Total', (reportMasjid.islahiBayanList || []).length], ['Tableghi Jamat', reportMasjid.tableghiJamat || 0], ['Ghast', reportMasjid.ghast || 0], ['Nazra Students', reportMasjid.taleemUlQuran || 0], ['Qaida Students', reportMasjid.nazraQaida || 0]],
         theme: 'striped', headStyles: { fillColor: [17, 24, 39] }, styles: { fontSize: 9 }
     });
 
+    const fbDetails = reportMasjid.fridayBayanList || [];
+    let lastY = (doc as any).lastAutoTable.finalY;
+    if (fbDetails.length > 0) {
+        const fbY = lastY + 15;
+        doc.setFontSize(12); doc.text("4. FRIDAY BAYAN (DETAILED LOG)", 14, fbY);
+        autoTable(doc, { startY: fbY + 5, head: [['Date', 'Topic / Mozu', 'Remarks']], body: fbDetails.map((b: any) => [b.date || '-', b.topic || '-', b.remarks || '-']), theme: 'grid', headStyles: { fillColor: [55, 65, 81] }, styles: { fontSize: 8 } });
+        lastY = (doc as any).lastAutoTable.finalY;
+    }
+
+    const ibDetails = reportMasjid.islahiBayanList || [];
+    if (ibDetails.length > 0) {
+        const ibY = lastY + 15;
+        doc.setFontSize(12); doc.text("5. ISLAHI BAYAN (DETAILED LOG)", 14, ibY);
+        autoTable(doc, { startY: ibY + 5, head: [['Date', 'Topic / Mozu', 'Remarks']], body: ibDetails.map((b: any) => [b.date || '-', b.topic || '-', b.remarks || '-']), theme: 'grid', headStyles: { fillColor: [75, 85, 99] }, styles: { fontSize: 8 } });
+        lastY = (doc as any).lastAutoTable.finalY;
+    }
+
+    const extraWork = report.extraWork || [];
+    if (extraWork.length > 0) {
+        const ewY = lastY + 15;
+        doc.setFontSize(12); doc.text("6. EXTRA PROFESSIONAL / ADMIN WORK", 14, ewY);
+        autoTable(doc, { startY: ewY + 5, head: [['Work Detail', 'Assigned By', 'Date', 'Remarks']], body: extraWork.map((w: any) => [w.workDetail || '-', w.assignedBy || '-', w.date || '-', w.remarks || '-']), theme: 'grid', headStyles: { fillColor: [15, 23, 42] }, styles: { fontSize: 8 } });
+    }
     doc.save(`Performance_Report_${report.userName}_${monthName}.pdf`);
+  };
+
+  const handleDeleteReport = async (reportId: string) => {
+    if (!confirm("Are you sure you want to delete this archived report?")) return;
+    try {
+        await deleteDoc(doc(db, "personal_monthly_reports", reportId));
+        alert("Report deleted successfully.");
+        if (currentUser) fetchSavedReports(currentUser.uid);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleUpdateMasjidBayan = (index: number, field: keyof FridayBayanDetail, value: string) => {
+    const updated = [...masjidData.fridayBayanList];
+    updated[index][field] = value;
+    setMasjidData({ ...masjidData, fridayBayanList: updated });
+  };
+
+  const handleUpdateIslahiBayan = (index: number, field: keyof IslahiBayanDetail, value: string) => {
+    const updated = [...masjidData.islahiBayanList];
+    updated[index][field] = value;
+    setMasjidData({ ...masjidData, islahiBayanList: updated });
+  };
+
+  const handleUpdateExtraWork = (index: number, field: keyof ExtraWorkEntry, value: string) => {
+    const updated = [...extraWorkEntries];
+    (updated[index] as any)[field] = value;
+    setExtraWorkEntries(updated);
   };
 
   const handleSaveReport = async () => {
@@ -254,14 +331,14 @@ export default function PersonalReports() {
       const reportData = {
         userId: currentUser.uid, userName: personalDetail.name, officerCode: personalDetail.code, designation: personalDetail.designation,
         month: selectedMonth, year: selectedYear, createdAt: serverTimestamp(),
-        scrape: scrapeEntries.filter(e => e.item), masjid: masjidData,
-        pettyTotal: pettyCashTotal, cashVoucherTotal: cashVoucherTotal,
-        scrapeTotal: scrapeTotal, financeSnapshot: financeLedger.slice(0, 100)
+        scrape: scrapeEntries.filter(e => e.item), 
+        masjid: { ...masjidData, fridayBayanList: masjidData.fridayBayanList.filter(b => b.topic || b.date), islahiBayanList: masjidData.islahiBayanList.filter(b => b.topic || b.date), islahiBayanat: islahiBayanCount },
+        extraWork: extraWorkEntries.filter(w => w.workDetail),
+        pettyTotal: pettyCashTotal, cashVoucherTotal: cashVoucherTotal, scrapeTotal: scrapeTotal, financeSnapshot: financeLedger.slice(0, 100)
       };
       await setDoc(doc(db, "personal_monthly_reports", reportId), reportData);
-      alert("Performance record stored/updated successfully.");
+      alert("Performance record stored successfully.");
       await fetchSavedReports(currentUser.uid);
-      await fetchSelectedMonthSavedData();
     } catch (e) { alert("Error saving"); }
     finally { setSaving(false); }
   };
@@ -275,32 +352,29 @@ export default function PersonalReports() {
 
       <div className="p-4 overflow-auto h-full space-y-6">
         <div className="bg-gray-900 p-4 flex gap-6 items-end text-white border border-black">
-            <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-gray-500 uppercase tracking-widest text-orange-500">Archive Target Month</span>
-                <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-black text-white px-4 py-1.5 border border-white/20 text-[10px] font-black uppercase outline-none cursor-pointer">
+            <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-orange-500 uppercase tracking-widest">Target Month</span>
+                <select value={selectedMonth} onChange={(e) => setSelectedMonth(Number(e.target.value))} className="bg-black text-white px-4 py-1.5 border border-white/20 text-[10px] font-black uppercase outline-none">
                     {[...Array(12)].map((_, i) => <option key={i+1} value={i+1}>{new Date(2000, i).toLocaleString('default', { month: 'long' })}</option>)}
                 </select>
             </div>
-            <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-gray-500 uppercase tracking-widest text-orange-500">Archive Target Year</span>
-                <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-black text-white px-4 py-1.5 border border-white/20 text-[10px] font-black uppercase outline-none cursor-pointer">
+            <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-orange-500 uppercase tracking-widest">Target Year</span>
+                <select value={selectedYear} onChange={(e) => setSelectedYear(Number(e.target.value))} className="bg-black text-white px-4 py-1.5 border border-white/20 text-[10px] font-black uppercase outline-none">
                     {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                 </select>
-            </div>
-            <div className="ml-auto text-right font-black uppercase text-orange-500 tracking-widest">
-                {activeTab === 'input' ? 'Editing records' : 'Data Insight'}
             </div>
         </div>
 
         {activeTab === "input" ? (
-            <div className="space-y-4 animate-fadeIn">
-                <div className="bg-gray-50 p-3 border border-black grid grid-cols-3 gap-4 items-center shadow-sm">
-                    <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-gray-400 uppercase">Officer Name</span><input type="text" value={personalDetail.name} onChange={(e) => setPersonalDetail({...personalDetail, name: e.target.value})} className="bg-transparent border-none p-0 text-[11px] font-black uppercase focus:ring-0 outline-none" /></div>
-                    <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-gray-400 uppercase">Designation</span><input type="text" value={personalDetail.designation} onChange={(e) => setPersonalDetail({...personalDetail, designation: e.target.value})} className="bg-transparent border-none p-0 text-[11px] font-black uppercase focus:ring-0 outline-none" /></div>
-                    <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-gray-400 uppercase">Employee Code</span><input type="text" value={personalDetail.code} onChange={(e) => setPersonalDetail({...personalDetail, code: e.target.value})} className="bg-transparent border-none p-0 text-[11px] font-black uppercase focus:ring-0 outline-none" /></div>
+            <div className="space-y-4">
+                <div className="bg-gray-50 p-3 border border-black grid grid-cols-3 gap-4 items-center">
+                    <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-gray-400 uppercase">Officer Name</span><input type="text" value={personalDetail.name} onChange={(e) => setPersonalDetail({...personalDetail, name: e.target.value})} className="bg-transparent border-none p-0 text-[11px] font-black uppercase outline-none" /></div>
+                    <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-gray-400 uppercase">Designation</span><input type="text" value={personalDetail.designation} onChange={(e) => setPersonalDetail({...personalDetail, designation: e.target.value})} className="bg-transparent border-none p-0 text-[11px] font-black uppercase outline-none" /></div>
+                    <div className="flex flex-col gap-1"><span className="text-[7px] font-black text-gray-400 uppercase">Employee Code</span><input type="text" value={personalDetail.code} onChange={(e) => setPersonalDetail({...personalDetail, code: e.target.value})} className="bg-transparent border-none p-0 text-[11px] font-black uppercase outline-none" /></div>
                 </div>
 
                 <div className="border border-black">
-                    <div className="bg-gray-100 px-6 py-2 border-b border-black flex justify-between items-center text-white">
-                        <h3 className="font-black uppercase tracking-widest text-[9px] text-black">1. Scrape Sales Activity Entry</h3>
+                    <div className="bg-gray-100 px-6 py-2 border-b border-black flex justify-between items-center">
+                        <h3 className="font-black uppercase tracking-widest text-[9px]">1. Scrape Sales Activity</h3>
                         <div className="flex gap-2">
                             <button onPaste={handlePasteScrape} className="text-[8px] font-black uppercase px-3 py-1 border border-black text-black hover:bg-black hover:text-white transition-all">Excel Paste</button>
                             <button onClick={() => setScrapeEntries([...scrapeEntries, { date: "", item: "", qty: "", unit: "KG", rate: "", amount: 0, remarks: "" }])} className="text-[8px] font-black uppercase px-3 py-1 bg-black text-white hover:bg-orange-600 transition-all">+ Add Row</button>
@@ -310,7 +384,7 @@ export default function PersonalReports() {
                         <table className="w-full border-collapse">
                             <thead>
                                 <tr className="border-b border-black text-left">
-                                    <th className="p-2 uppercase font-black text-gray-400 text-[9px]">Date (Plain)</th>
+                                    <th className="p-2 uppercase font-black text-gray-400 text-[9px]">Date</th>
                                     <th className="p-2 uppercase font-black text-gray-400 text-[9px]">Item detail</th>
                                     <th className="p-2 uppercase font-black text-gray-400 text-[9px] w-16 text-center">Qty</th>
                                     <th className="p-2 uppercase font-black text-gray-400 text-[9px] w-16 text-center">Unit</th>
@@ -321,55 +395,143 @@ export default function PersonalReports() {
                             <tbody>
                                 {scrapeEntries.map((row, i) => (
                                     <tr key={i} className="border-b border-gray-100 group">
-                                        <td className="p-1"><input type="text" value={row.date} onChange={(e) => handleUpdateScrape(i, 'date', e.target.value)} onPaste={handlePasteScrape} className="w-full border border-gray-200 p-1.5 outline-none focus:border-black font-bold group-hover:border-black" placeholder="DD/MM/YYYY" /></td>
-                                        <td className="p-1"><input type="text" value={row.item} onChange={(e) => handleUpdateScrape(i, 'item', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none focus:border-black font-bold group-hover:border-black" placeholder="..." /></td>
-                                        <td className="p-1"><input type="text" value={row.qty} onChange={(e) => handleUpdateScrape(i, 'qty', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none text-center font-bold group-hover:border-black" /></td>
-                                        <td className="p-1"><input type="text" value={row.unit} onChange={(e) => handleUpdateScrape(i, 'unit', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold group-hover:border-black uppercase text-center" placeholder="KG" /></td>
-                                        <td className="p-1"><input type="text" value={row.rate} onChange={(e) => handleUpdateScrape(i, 'rate', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none text-right font-bold group-hover:border-black" /></td>
+                                        <td className="p-1"><input type="text" value={row.date} onChange={(e) => handleUpdateScrape(i, 'date', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" placeholder="DD/MM/YYYY" /></td>
+                                        <td className="p-1"><input type="text" value={row.item} onChange={(e) => handleUpdateScrape(i, 'item', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                        <td className="p-1"><input type="text" value={row.qty} onChange={(e) => handleUpdateScrape(i, 'qty', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none text-center font-bold" /></td>
+                                        <td className="p-1"><input type="text" value={row.unit} onChange={(e) => handleUpdateScrape(i, 'unit', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold uppercase text-center" /></td>
+                                        <td className="p-1"><input type="text" value={row.rate} onChange={(e) => handleUpdateScrape(i, 'rate', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none text-right font-bold" /></td>
                                         <td className="p-2 text-right font-black">Rs. {row.amount.toLocaleString()}</td>
                                     </tr>
                                 ))}
                             </tbody>
-                            <tfoot><tr className="bg-gray-50 border-t border-black"><td colSpan={5} className="p-3 uppercase font-black text-[10px]">Accumulated Scrape Revenue</td><td className="p-3 text-right font-black text-orange-600 text-sm tracking-widest underline">Rs. {scrapeTotal.toLocaleString()}</td></tr></tfoot>
+                            <tfoot><tr className="bg-gray-50 border-t border-black"><td colSpan={5} className="p-3 uppercase font-black text-[10px]">Accumulated Scrape Revenue</td><td className="p-3 text-right font-black text-orange-600 text-sm underline">Rs. {scrapeTotal.toLocaleString()}</td></tr></tfoot>
                         </table>
                     </div>
                 </div>
 
                 <div className="border border-black">
-                    <div className="bg-gray-900 px-6 py-2 border-b border-black text-white"><h3 className="font-black uppercase tracking-widest text-[9px]">2. Masjid Monthly Activity Performance</h3></div>
-                    <div className="p-4 grid grid-cols-2 md:grid-cols-6 gap-3">
+                    <div className="bg-gray-900 px-6 py-2 border-b border-black text-white">
+                        <h3 className="font-black uppercase tracking-widest text-[9px]">2. Masjid Monthly Activity</h3>
+                    </div>
+                    <div className="p-4 grid grid-cols-2 md:grid-cols-5 gap-3 border-b border-black bg-gray-50">
                         {[
-                            { label: "Friday Bayan", k: "fridayBayan" }, { label: "Islahi Bayanat", k: "islahiBayanat" },
+                            { label: "Islahi Bayanat", k: "islahiBayanat" },
                             { label: "Tableghi Jamat", k: "tableghiJamat" }, { label: "Ghast", k: "ghast" },
-                            { label: "Taleem Quran", k: "taleemUlQuran" }, { label: "Nazra Qaida", k: "nazraQaida" }
+                            { label: "Nazra Students", k: "taleemUlQuran" }, { label: "Qaida Students", k: "nazraQaida" }
                         ].map(act => (
-                            <div key={act.k} className="flex flex-col gap-1 border border-gray-200 p-2 bg-gray-50">
+                            <div key={act.k} className="flex flex-col gap-1 border border-black p-2 bg-white">
                                 <span className="text-[7px] font-black text-gray-400 uppercase text-center mb-1">{act.label}</span>
                                 <div className="flex border border-black bg-white">
-                                    <button onClick={() => setMasjidData({...masjidData, [act.k]: Math.max(0, (masjidData as any)[act.k] - 1)})} className="w-6 h-6 border-r border-black font-black text-[10px] hover:bg-gray-100">-</button>
+                                    <button onClick={() => setMasjidData({...masjidData, [act.k]: Math.max(0, (masjidData as any)[act.k] - 1)})} className="w-6 h-6 border-r border-black font-black text-[10px]">-</button>
                                     <input type="number" value={(masjidData as any)[act.k]} onChange={(e) => setMasjidData({...masjidData, [act.k]: Number(e.target.value)})} className="w-full text-center text-[10px] font-black outline-none bg-transparent" />
-                                    <button onClick={() => setMasjidData({...masjidData, [act.k]: (masjidData as any)[act.k] + 1})} className="w-6 h-6 border-l border-black bg-black text-white font-black text-[10px] hover:bg-gray-800 transition-all">+</button>
+                                    <button onClick={() => setMasjidData({...masjidData, [act.k]: (masjidData as any)[act.k] + 1})} className="w-6 h-6 border-l border-black bg-black text-white font-black text-[10px]">+</button>
                                 </div>
                             </div>
                         ))}
                     </div>
+                    
+                    <div className="p-4 space-y-4">
+                        <div className="flex justify-between items-center border-b border-black pb-2">
+                            <h4 className="text-[9px] font-black uppercase text-gray-500">Friday Bayan Details (Total: {fridayBayanCount})</h4>
+                            <button onClick={() => setMasjidData({...masjidData, fridayBayanList: [...masjidData.fridayBayanList, { date: "", topic: "", remarks: "" }]})} className="text-[7px] font-black uppercase px-2 py-1 bg-black text-white">+ Add Bayan</button>
+                        </div>
+                        <table className="w-full text-[9px]">
+                            <thead>
+                                <tr className="border-b border-black text-left text-gray-400 uppercase">
+                                    <th className="p-2 w-32">Date</th>
+                                    <th className="p-2">Mozu / Unwan</th>
+                                    <th className="p-2">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {masjidData.fridayBayanList.map((row, i) => (
+                                    <tr key={i} className="border-b border-gray-100">
+                                        <td className="p-1"><input type="text" value={row.date} onChange={(e) => handleUpdateMasjidBayan(i, 'date', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                        <td className="p-1"><input type="text" value={row.topic} onChange={(e) => handleUpdateMasjidBayan(i, 'topic', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                        <td className="p-1"><input type="text" value={row.remarks} onChange={(e) => handleUpdateMasjidBayan(i, 'remarks', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+
+                        <div className="flex justify-between items-center border-b border-black pb-2 mt-6">
+                            <h4 className="text-[9px] font-black uppercase text-gray-500">Islahi Bayan Details (Total: {islahiBayanCount})</h4>
+                            <button onClick={() => setMasjidData({...masjidData, islahiBayanList: [...masjidData.islahiBayanList, { date: "", topic: "", remarks: "" }]})} className="text-[7px] font-black uppercase px-2 py-1 bg-black text-white">+ Add Islahi Bayan</button>
+                        </div>
+                        <table className="w-full text-[9px]">
+                            <thead>
+                                <tr className="border-b border-black text-left text-gray-400 uppercase">
+                                    <th className="p-2 w-32">Date</th>
+                                    <th className="p-2">Mozu / Unwan</th>
+                                    <th className="p-2">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {masjidData.islahiBayanList.map((row, i) => (
+                                    <tr key={i} className="border-b border-gray-100">
+                                        <td className="p-1"><input type="text" value={row.date} onChange={(e) => handleUpdateIslahiBayan(i, 'date', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                        <td className="p-1"><input type="text" value={row.topic} onChange={(e) => handleUpdateIslahiBayan(i, 'topic', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                        <td className="p-1"><input type="text" value={row.remarks} onChange={(e) => handleUpdateIslahiBayan(i, 'remarks', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
 
-                <button onClick={handleSaveReport} disabled={saving} className="w-full bg-black text-white py-4 font-black uppercase tracking-[0.3em] hover:bg-orange-600 transition-all active:scale-95 disabled:bg-gray-300 border-2 border-black text-xs shadow-xl">Confirm & Save Monthly Archive Record</button>
+                <div className="border border-black">
+                    <div className="bg-gray-100 px-6 py-2 border-b border-black flex justify-between items-center">
+                        <h3 className="font-black uppercase tracking-widest text-[9px]">3. Extra Professional / Admin Work</h3>
+                        <button onClick={() => setExtraWorkEntries([...extraWorkEntries, { workDetail: "", assignedBy: "", date: "", remarks: "" }])} className="text-[8px] font-black uppercase px-3 py-1 bg-black text-white">+ Add Row</button>
+                    </div>
+                    <div className="p-2">
+                        <table className="w-full border-collapse text-[9px]">
+                            <thead>
+                                <tr className="border-b border-black text-left text-gray-400 uppercase">
+                                    <th className="p-2">Work Detail</th>
+                                    <th className="p-2 w-32">Assigned By</th>
+                                    <th className="p-2 w-32">Date</th>
+                                    <th className="p-2">Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {extraWorkEntries.map((row, i) => (
+                                    <tr key={i} className="border-b border-gray-100">
+                                        <td className="p-1"><input type="text" value={row.workDetail} onChange={(e) => handleUpdateExtraWork(i, 'workDetail', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                        <td className="p-1"><input type="text" value={row.assignedBy} onChange={(e) => handleUpdateExtraWork(i, 'assignedBy', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                        <td className="p-1"><input type="text" value={row.date} onChange={(e) => handleUpdateExtraWork(i, 'date', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                        <td className="p-1"><input type="text" value={row.remarks} onChange={(e) => handleUpdateExtraWork(i, 'remarks', e.target.value)} className="w-full border border-gray-200 p-1.5 outline-none font-bold" /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <button onClick={handleSaveReport} disabled={saving} className="w-full bg-black text-white py-4 font-black uppercase tracking-[0.3em] hover:bg-orange-600 disabled:bg-gray-300 border-2 border-black text-xs shadow-xl">Save Monthly Archive</button>
             </div>
         ) : (
-            <div className="space-y-6 animate-fadeIn">
+            <div className="space-y-6">
                 <div className="bg-white p-4 border border-black flex justify-between items-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)]">
-                    <div className="flex flex-col"><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Performance Insight</span><span className="text-[11px] font-black uppercase">{personalDetail.name} — {new Date(2000, selectedMonth - 1).toLocaleString('default', { month: 'long' })} {selectedYear}</span></div>
+                    <div className="flex flex-col">
+                        <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Performance Insight</span>
+                        <span className="text-[11px] font-black uppercase">
+                            {personalDetail.name} — {new Date(2000, selectedMonth - 1).toLocaleString('default', { month: 'long' })} {selectedYear}
+                        </span>
+                    </div>
                     <div className="flex gap-2">
-                        <button onClick={handleSaveReport} className="bg-black text-white px-6 py-1.5 text-[9px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all border border-black">Archive Sync</button>
-                        <button onClick={() => generateProfessionalPDF({ month: selectedMonth, year: selectedYear, masjid: masjidData, scrape: scrapeEntries.filter(e => e.item), scrapeTotal: scrapeTotal, pettyTotal: pettyCashTotal })} className="bg-orange-600 text-white px-6 py-1.5 text-[9px] font-black uppercase tracking-widest hover:bg-black transition-all border border-black">Download PDF Summary</button>
+                        <button onClick={handleSaveReport} className="bg-black text-white px-6 py-1.5 text-[9px] font-black uppercase tracking-widest border border-black">Archive Sync</button>
+                        <button onClick={() => generateProfessionalPDF(currentSavedReport || { 
+                            month: selectedMonth, year: selectedYear, masjid: masjidData, 
+                            scrape: scrapeEntries.filter(e => e.item), scrapeTotal: scrapeTotal, 
+                            pettyTotal: pettyCashTotal, userName: personalDetail.name, officerCode: personalDetail.code, designation: personalDetail.designation 
+                        })} className="bg-orange-600 text-white px-6 py-1.5 text-[9px] font-black uppercase tracking-widest border border-black">PDF Summary</button>
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[350px]">
                     <div className="border border-black p-4 flex flex-col bg-white">
-                        <h3 className="text-[8px] font-black uppercase tracking-widest text-gray-400 mb-4">Expenditure Breakdown (Ledger Sync)</h3>
+                        <h3 className="text-[8px] font-black uppercase tracking-widest text-gray-400 mb-4">Expenditure Breakdown</h3>
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={graphData}>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#eee" />
@@ -392,13 +554,74 @@ export default function PersonalReports() {
                     </div>
                 </div>
 
+                {/* DETAILED DATA PREVIEW */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border border-black bg-white overflow-hidden shadow-sm">
+                        <div className="bg-gray-100 px-4 py-2 border-b border-black flex justify-between items-center">
+                            <h3 className="text-[9px] font-black uppercase">Scrape Sales Preview</h3>
+                            <span className="text-[8px] font-black text-gray-400">{(currentSavedReport?.scrape || []).length} Items</span>
+                        </div>
+                        <div className="max-h-[200px] overflow-auto">
+                            <table className="w-full text-[9px]">
+                                <thead className="bg-gray-50 sticky top-0">
+                                    <tr className="border-b border-black text-left">
+                                        <th className="p-2 font-black uppercase">Item</th>
+                                        <th className="p-2 font-black uppercase text-right">Qty</th>
+                                        <th className="p-2 font-black uppercase text-right">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-gray-100">
+                                    {(currentSavedReport?.scrape || []).map((e: any, idx: number) => (
+                                        <tr key={idx}>
+                                            <td className="p-2 font-bold uppercase">{e.item}</td>
+                                            <td className="p-2 text-right">{e.qty} {e.unit}</td>
+                                            <td className="p-2 text-right font-black">Rs. {(Number(e.amount) || 0).toLocaleString()}</td>
+                                        </tr>
+                                    ))}
+                                    {(!currentSavedReport || !currentSavedReport.scrape || currentSavedReport.scrape.length === 0) && <tr><td colSpan={3} className="p-4 text-center italic text-gray-400 uppercase">No archive data</td></tr>}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div className="border border-black bg-white overflow-hidden shadow-sm">
+                        <div className="bg-gray-100 px-4 py-2 border-b border-black flex justify-between items-center">
+                            <h3 className="text-[9px] font-black uppercase">Masjid Activity Preview</h3>
+                            <span className="text-[8px] font-black text-gray-400">{masjidTotalUnits} Units Total</span>
+                        </div>
+                        <div className="p-4 grid grid-cols-2 gap-4">
+                            {[
+                                { l: "Friday Bayan", v: fridayBayanCount },
+                                { l: "Islahi Bayanat", v: islahiBayanCount },
+                                { l: "Tableghi Jamat", v: masjidData.tableghiJamat },
+                                { l: "Ghast", v: masjidData.ghast },
+                                { l: "Taleem Quran", v: masjidData.taleemUlQuran },
+                                { l: "Nazra Qaida", v: masjidData.nazraQaida },
+                            ].map(act => (
+                                <div key={act.l} className="flex justify-between items-center border-b border-gray-100 pb-1">
+                                    <span className="text-[8px] font-black uppercase text-gray-500">{act.l}</span>
+                                    <span className="text-[10px] font-black">{act.v || 0}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
                 <div className="border border-black overflow-hidden shadow-sm">
-                    <div className="bg-gray-900 px-6 py-2 border-b border-black text-white flex justify-between items-center"><h3 className="text-[9px] font-black uppercase tracking-widest text-orange-500">History: Monthly Record Archive</h3><span className="text-[7px] font-bold text-gray-500 uppercase">{savedReports.length} records found</span></div>
-                    <div className="divide-y divide-black max-h-[300px] overflow-auto custom-scrollbar">
+                    <div className="bg-gray-900 px-6 py-2 border-b border-black text-white flex justify-between items-center"><h3 className="text-[9px] font-black uppercase tracking-widest text-orange-500">History: Monthly Record Archive</h3></div>
+                    <div className="divide-y divide-black max-h-[300px] overflow-auto">
                         {savedReports.map((r) => (
-                            <div key={r.id} className="p-3 flex justify-between items-center hover:bg-gray-50 transition-colors"><div className="flex gap-6 items-center"><span className="text-[10px] font-black uppercase text-gray-900 w-24">{new Date(2000, r.month - 1).toLocaleString('default', { month: 'long' })} {r.year}</span><span className="text-[8px] font-bold text-gray-400 uppercase">Rev: Rs. {r.scrapeTotal?.toLocaleString()} | Petty: Rs. {r.pettyTotal?.toLocaleString()}</span></div><button onClick={() => generateProfessionalPDF(r)} className="text-[8px] font-black uppercase px-4 py-1 border border-black hover:bg-black hover:text-white transition-all">Download Archive</button></div>
+                            <div key={r.id} onClick={() => { setSelectedMonth(Number(r.month)); setSelectedYear(Number(r.year)); }} className="p-3 flex justify-between items-center hover:bg-gray-50 transition-colors cursor-pointer group">
+                                <div className="flex gap-6 items-center">
+                                    <span className="text-[10px] font-black uppercase text-gray-900 w-24">{new Date(2000, r.month - 1).toLocaleString('default', { month: 'long' })} {r.year}</span>
+                                    <span className="text-[8px] font-bold text-gray-400 uppercase">Rev: Rs. {r.scrapeTotal?.toLocaleString()} | Petty: Rs. {r.pettyTotal?.toLocaleString()}</span>
+                                </div>
+                                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+                                    <button onClick={() => generateProfessionalPDF(r)} className="text-[7px] font-black uppercase px-2 py-1 border border-black hover:bg-black hover:text-white transition-all">PDF</button>
+                                    <button onClick={() => handleDeleteReport(r.id)} className="text-[7px] font-black uppercase px-2 py-1 border border-red-600 text-red-600 hover:bg-red-600 hover:text-white transition-all">Delete</button>
+                                </div>
+                            </div>
                         ))}
-                        {savedReports.length === 0 && <div className="p-10 text-center text-[9px] font-black text-gray-300 uppercase italic opacity-30 tracking-[0.3em]">Archive collection empty</div>}
                     </div>
                 </div>
             </div>

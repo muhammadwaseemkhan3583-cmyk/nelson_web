@@ -34,6 +34,12 @@ export default function VoucherRecords() {
   // Forwarding State
   const [forwardModal, setForwardModal] = useState<{ id: string, nextStatus: string, message: string } | null>(null);
 
+  // Deletion State
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [voucherToDeleteId, setVoucherToDeleteId] = useState<string | null>(null);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const fetchVouchers = async () => {
     setIsLoading(true);
     try {
@@ -195,6 +201,37 @@ export default function VoucherRecords() {
           setPassError("Incorrect password. Access denied.");
       } finally {
           setIsVerifying(false);
+      }
+  };
+
+  const handleOpenDeleteModal = (id: string) => {
+      setVoucherToDeleteId(id);
+      setIsDeleteModalOpen(true);
+      setDeleteConfirmInput("");
+  };
+
+  const handleDeleteVoucher = async () => {
+      if (!voucherToDeleteId || deleteConfirmInput.toLowerCase() !== "yes") return;
+
+      setIsDeleting(true);
+      try {
+          const response = await authenticatedFetch("/api/vouchers/delete", {
+              method: "DELETE",
+              body: JSON.stringify({ id: voucherToDeleteId })
+          });
+          const result = await response.json();
+          if (result.success) {
+              alert("Voucher and its entries deleted successfully.");
+              setIsDeleteModalOpen(false);
+              fetchVouchers();
+          } else {
+              alert(result.message);
+          }
+      } catch (error) {
+          console.error("Delete Error:", error);
+          alert("Failed to delete voucher.");
+      } finally {
+          setIsDeleting(false);
       }
   };
 
@@ -490,6 +527,16 @@ export default function VoucherRecords() {
                                         >
                                             Inspect
                                         </button>
+
+                                        {userRole === 'Finance' && (
+                                            <button 
+                                                onClick={() => handleOpenDeleteModal(rec.id)}
+                                                className="text-red-600 hover:text-red-800 transition-colors p-1.5 rounded hover:bg-red-50 border border-red-100"
+                                                title="Delete Voucher"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                            </button>
+                                        )}
                                         
                                         {userRole === 'Finance' && rec.status !== 'Cleared' && (
                                             <>
@@ -706,6 +753,58 @@ export default function VoucherRecords() {
                           >
                               Yes
                           </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {/* DELETE CONFIRMATION MODAL */}
+      {isDeleteModalOpen && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-sm animate-fadeIn">
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-slideUp border border-gray-100">
+                  <div className="bg-red-600 p-6 text-center">
+                      <div className="w-12 h-12 bg-white text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 shadow-lg">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                      </div>
+                      <h3 className="text-white font-black uppercase tracking-widest text-sm leading-none">Delete Voucher</h3>
+                      <p className="text-white/60 text-[9px] font-bold uppercase mt-2 tracking-tighter">This action will permanently remove the voucher and all its entries.</p>
+                  </div>
+                  
+                  <div className="p-8">
+                      <div className="space-y-4">
+                          <p className="text-center font-bold text-gray-700 text-sm">Do you want to delete this voucher? This cannot be undone.</p>
+                          
+                          <div className="space-y-1">
+                              <label className="text-[8px] font-black text-gray-400 uppercase tracking-widest ml-1">Type "YES" to confirm</label>
+                              <input 
+                                  type="text" 
+                                  value={deleteConfirmInput}
+                                  onChange={(e) => setDeleteConfirmInput(e.target.value)}
+                                  placeholder="YES"
+                                  className="w-full bg-gray-50 border-2 border-gray-100 rounded-xl px-4 py-3 text-xs font-bold outline-none focus:border-red-600 transition-all text-center uppercase"
+                                  onKeyDown={(e) => e.key === 'Enter' && deleteConfirmInput.toLowerCase() === 'yes' && handleDeleteVoucher()}
+                                  autoFocus
+                              />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-2">
+                              <button 
+                                  onClick={() => setIsDeleteModalOpen(false)}
+                                  className="py-3 rounded-xl text-[10px] font-black uppercase text-gray-400 hover:bg-gray-50 transition-all"
+                              >
+                                  Cancel
+                              </button>
+                              <button 
+                                  onClick={handleDeleteVoucher}
+                                  disabled={isDeleting || deleteConfirmInput.toLowerCase() !== 'yes'}
+                                  className="py-3 bg-red-600 hover:bg-red-700 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-red-100 transition-all active:scale-95 flex items-center justify-center gap-2 disabled:bg-gray-200 disabled:shadow-none"
+                              >
+                                  {isDeleting ? (
+                                      <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                  ) : "Delete Now"}
+                              </button>
+                          </div>
                       </div>
                   </div>
               </div>
