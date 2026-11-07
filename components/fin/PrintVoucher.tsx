@@ -21,6 +21,7 @@ export default function GenerateVoucher() {
   const [total, setTotal] = useState(0);
   const [expenseIds, setExpenseIds] = useState<string[]>([]);
   const [showPrintModal, setShowPrintModal] = useState(false);
+  const [activePrintVoucher, setActivePrintVoucher] = useState<any | null>(null);
   const [userName, setUserName] = useState("");
 
   // Fetch User Name
@@ -87,6 +88,15 @@ export default function GenerateVoucher() {
   const handleSaveAndPrint = async () => {
     if (!isGenerated) return;
     setIsSaving(true);
+    const voucherToPrint = {
+      serialNumber: serial,
+      date: selectedDate,
+      type: voucherType,
+      totalAmount: total,
+      items: voucherData,
+      preparedBy: userName
+    };
+
     try {
       const response = await authenticatedFetch("/api/vouchers/save", {
         method: "POST",
@@ -95,7 +105,11 @@ export default function GenerateVoucher() {
       const result = await response.json();
       if (result.success || response.status === 409) {
         alert("Voucher saved successfully.");
-        // Now show modal for printing
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("expenses-updated"));
+        }
+        // Show modal with the exact captured voucher
+        setActivePrintVoucher(voucherToPrint);
         setShowPrintModal(true);
         setIsGenerated(false);
         setPendingDates(prev => prev.filter(d => d !== selectedDate));
@@ -186,7 +200,17 @@ export default function GenerateVoucher() {
                               Save & Print
                           </button>
                           <button 
-                            onClick={() => setShowPrintModal(true)}
+                            onClick={() => {
+                              setActivePrintVoucher({
+                                serialNumber: serial, 
+                                date: selectedDate, 
+                                type: voucherType, 
+                                totalAmount: total, 
+                                items: voucherData,
+                                preparedBy: userName
+                              });
+                              setShowPrintModal(true);
+                            }}
                             className="py-5 bg-gray-900 text-white rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl hover:bg-gray-800 transition-all active:scale-95 flex items-center justify-center gap-2"
                           >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
@@ -209,17 +233,13 @@ export default function GenerateVoucher() {
       )}
 
       {/* PRINT MODAL */}
-      {showPrintModal && (
+      {showPrintModal && activePrintVoucher && (
           <VoucherPrintModal 
-            voucher={{ 
-              serialNumber: serial, 
-              date: selectedDate, 
-              type: voucherType, 
-              totalAmount: total, 
-              items: voucherData,
-              preparedBy: userName
+            voucher={activePrintVoucher}
+            onClose={() => {
+              setShowPrintModal(false);
+              setActivePrintVoucher(null);
             }}
-            onClose={() => setShowPrintModal(false)}
           />
       )}
     </div>

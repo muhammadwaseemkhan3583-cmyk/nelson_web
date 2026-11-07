@@ -20,6 +20,23 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
     window.print();
   };
 
+  const formatVoucherDate = (dateVal: any) => {
+    if (!dateVal) return "N/A";
+    try {
+      if (typeof dateVal === "string" && dateVal.includes("/")) {
+        const parts = dateVal.split(/[\/\-]/);
+        if (parts.length === 3 && parts[0].length <= 2) {
+          return dateVal;
+        }
+      }
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return String(dateVal);
+      return d.toLocaleDateString("en-GB");
+    } catch {
+      return String(dateVal || "N/A");
+    }
+  };
+
   const items = Array.isArray(voucher.items) ? voucher.items : [];
   const itemCount = items.length;
   const minRows = 8;
@@ -69,7 +86,7 @@ export default function VoucherPrintModal({ voucher, onClose }: VoucherPrintModa
 
               <div className="text-right text-gray-900 leading-tight">
                 <p className="text-[10px] font-black italic uppercase">Voucher No: {voucher.serialNumber}</p>
-                <p className="text-[9px] font-bold uppercase border-t border-gray-100 pt-0.5 font-mono text-center">Date: {new Date(voucher.date).toLocaleDateString('en-GB')}</p>
+                <p className="text-[9px] font-bold uppercase border-t border-gray-100 pt-0.5 font-mono text-center">Date: {formatVoucherDate(voucher.date)}</p>
               </div>
             </div>
 

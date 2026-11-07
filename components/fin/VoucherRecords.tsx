@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import VoucherPrintModal from "./VoucherPrintModal";
 import { authenticatedFetch } from "@/lib/utils";
+import { getCachedData, setCachedData } from "@/lib/cache";
 import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -11,13 +12,15 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 
 export default function VoucherRecords() {
+  const cachedVouchers = typeof window !== "undefined" ? getCachedData<any[]>("all_vouchers_records") : null;
+
   const [searchTerm, setSearchTerm] = useState("");
   const [timeframe, setTimeframe] = useState("Last 5 Days");
   const [selectedType, setSelectedType] = useState("All");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
-  const [vouchers, setVouchers] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [vouchers, setVouchers] = useState<any[]>(() => cachedVouchers || []);
+  const [isLoading, setIsLoading] = useState(() => !cachedVouchers);
   const [selectedVoucher, setSelectedVoucher] = useState<any>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [currentUserName, setCurrentUserName] = useState<string>("");
@@ -40,13 +43,16 @@ export default function VoucherRecords() {
   const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const fetchVouchers = async () => {
-    setIsLoading(true);
+  const fetchVouchers = async (silent = false) => {
+    if (!silent && !getCachedData("all_vouchers_records")) {
+      setIsLoading(true);
+    }
     try {
       const response = await authenticatedFetch("/api/vouchers/list");
       const result = await response.json();
       if (result.success) {
         setVouchers(result.vouchers);
+        setCachedData("all_vouchers_records", result.vouchers);
       }
     } catch (error) {
       console.error("Fetch Error:", error);
@@ -56,8 +62,13 @@ export default function VoucherRecords() {
   };
 
   useEffect(() => {
-    fetchVouchers();
+    fetchVouchers(!!cachedVouchers);
     
+    const handleUpdate = () => {
+      fetchVouchers(true);
+    };
+    window.addEventListener("expenses-updated", handleUpdate);
+
     // Fetch User Role and Name
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -69,7 +80,10 @@ export default function VoucherRecords() {
         }
       }
     });
-    return () => unsubscribe();
+    return () => {
+      window.removeEventListener("expenses-updated", handleUpdate);
+      unsubscribe();
+    };
   }, []);
 
   const handleInspectVoucher = (rec: any) => {

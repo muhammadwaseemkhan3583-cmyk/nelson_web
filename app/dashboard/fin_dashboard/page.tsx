@@ -14,9 +14,19 @@ import { doc, getDoc } from "firebase/firestore";
 
 export default function FinanceDashboardPage() {
   const [activeTab, setActiveTab] = useState("expenses_add");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(new Set(["expenses_add"]));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [userData, setUserData] = useState<{ name: string; role: string; code: string } | null>(null);
+
+  useEffect(() => {
+    setVisitedTabs(prev => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -123,12 +133,36 @@ export default function FinanceDashboardPage() {
 
           <div className="flex-grow p-8 bg-gray-50 overflow-auto">
             <div className="max-w-[1600px] mx-auto h-full">
-                {activeTab === "expenses_add" && <AddExpense onClose={() => setActiveTab("expenses_sheets")} />}
-                {activeTab === "expenses_sheets" && <ViewSheets />}
-                {activeTab === "expenses_print" && <PrintVoucher />}
-                {activeTab === "expenses_records" && <VoucherRecords />}
-                {activeTab === "expenses_reports" && <ExpenseReports onTabChange={setActiveTab} />}
-                {activeTab === "personal_report" && <PersonalReports />}
+                {visitedTabs.has("expenses_add") && (
+                  <div className={activeTab === "expenses_add" ? "h-full" : "hidden"}>
+                    <AddExpense onClose={() => setActiveTab("expenses_sheets")} />
+                  </div>
+                )}
+                {visitedTabs.has("expenses_sheets") && (
+                  <div className={activeTab === "expenses_sheets" ? "h-full" : "hidden"}>
+                    <ViewSheets />
+                  </div>
+                )}
+                {visitedTabs.has("expenses_print") && (
+                  <div className={activeTab === "expenses_print" ? "h-full" : "hidden"}>
+                    <PrintVoucher />
+                  </div>
+                )}
+                {visitedTabs.has("expenses_records") && (
+                  <div className={activeTab === "expenses_records" ? "h-full" : "hidden"}>
+                    <VoucherRecords />
+                  </div>
+                )}
+                {visitedTabs.has("expenses_reports") && (
+                  <div className={activeTab === "expenses_reports" ? "h-full" : "hidden"}>
+                    <ExpenseReports onTabChange={setActiveTab} />
+                  </div>
+                )}
+                {visitedTabs.has("personal_report") && (
+                  <div className={activeTab === "personal_report" ? "h-full" : "hidden"}>
+                    <PersonalReports />
+                  </div>
+                )}
                 
                 {activeTab === "scrap" && (
                     <div className="flex items-center justify-center h-full">

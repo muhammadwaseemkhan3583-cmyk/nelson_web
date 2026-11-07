@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { authenticatedFetch } from "@/lib/utils";
+import { getCachedData, setCachedData } from "@/lib/cache";
 import { auth, db } from "@/lib/firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -10,9 +11,12 @@ import ExcelJS from "exceljs";
 import { saveAs } from "file-saver";
 
 export default function ViewSheets() {
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [vouchers, setVouchers] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const cachedExpenses = typeof window !== "undefined" ? getCachedData<any[]>("all_expenses_view") : null;
+  const cachedVouchers = typeof window !== "undefined" ? getCachedData<any[]>("all_vouchers_view") : null;
+
+  const [expenses, setExpenses] = useState<any[]>(() => cachedExpenses || []);
+  const [vouchers, setVouchers] = useState<any[]>(() => cachedVouchers || []);
+  const [isLoading, setIsLoading] = useState(() => !cachedExpenses);
   const [isEditMode, setIsEditMode] = useState(false);
   const [modifiedRowIds, setModifiedRowIds] = useState<Set<string>>(new Set());
   const [isSavingAll, setIsSavingAll] = useState(false);
@@ -44,8 +48,10 @@ export default function ViewSheets() {
     { val: 10, name: "Oct" }, { val: 11, name: "Nov" }, { val: 12, name: "Dec" }
   ];
 
-  const fetchExpenses = async () => {
-    setIsLoading(true);
+  const fetchExpenses = async (silent = false) => {
+    if (!silent && !getCachedData("all_expenses_view")) {
+      setIsLoading(true);
+    }
     try {
       const [expRes, vchRes] = await Promise.all([
         authenticatedFetch("/api/expenses/list?timeframe=all"),
@@ -64,9 +70,11 @@ export default function ViewSheets() {
             };
         });
         setExpenses(formatted);
+        setCachedData("all_expenses_view", formatted);
       }
       if (vchResult.success) {
         setVouchers(vchResult.vouchers);
+        setCachedData("all_vouchers_view", vchResult.vouchers);
       }
     } catch (error) {
       console.error("Fetch Error:", error);
@@ -76,7 +84,12 @@ export default function ViewSheets() {
   };
 
   useEffect(() => {
-    fetchExpenses();
+    fetchExpenses(!!cachedExpenses);
+
+    const handleUpdate = () => {
+      fetchExpenses(true);
+    };
+    window.addEventListener("expenses-updated", handleUpdate);
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -86,7 +99,10 @@ export default function ViewSheets() {
         }
       }
     });
-    return () => unsubscribe();
+    return () => {
+      window.removeEventListener("expenses-updated", handleUpdate);
+      unsubscribe();
+    };
   }, []);
 
   const handleViewVoucher = (serial: string) => {

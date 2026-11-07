@@ -7,6 +7,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
+import assert from "node:assert";
 
 export default function ExpenseReports({ onTabChange }: { onTabChange?: (tab: string) => void }) {
   const [loading, setLoading] = useState(false);
